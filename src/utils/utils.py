@@ -3,6 +3,8 @@ import random
 import numpy as np
 from sklearn.metrics import precision_score
 import torch
+from torch.nn.utils.rnn import pad_sequence
+import torch.nn.functional as F
 
 def evaluate_precision_at_k(corpus, tfidf_matrix, num_queries_to_sample, k):
     # Extract all queries from the corpus
@@ -49,7 +51,7 @@ def document_embedding(doc_tokens, word2vec_model):
 
 
 
-def evaluate_query(siamese_model, query_and_document_embeddings, query_index, k=100, threshold=0.6):
+def evaluate_siamese_query(siamese_model, query_and_document_embeddings, query_index, k=100, threshold=0.6):
     # Define the device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -89,3 +91,82 @@ def evaluate_query(siamese_model, query_and_document_embeddings, query_index, k=
         "relevant_docids": relevant_docs,
         "top_k_retrieved_docids": top_k
     }
+
+
+def evaluate_att_siamese_query(siamese_transformer, query_and_document_embeddings_sequence, query_index, size, k=10000, threshold=0.6):
+    # Determine the device to use
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    print("Using GPU." if device.type == "cuda" else "Using CPU.")
+
+    # Initialize sets for retrieved and relevant documents
+    retrieved_docs = set()
+    relevant_docs = set()
+
+    # Prepare the model
+    siamese_transformer.to(device)
+    siamese_transformer.eval()
+
+    # Prepare the query
+    my_query = torch.from_numpy(query_and_document_embeddings_sequence[query_index][0])
+    my_query_padded = F.pad(my_query.unsqueeze(0), (0, size - my_query.size(0))).squeeze(0)
+
+    # Process each query, document, relevance, and id
+    for query, doc, relevance, id in query_and_document_embeddings_sequence:
+        queries_padded = F.pad(torch.from_numpy(query).unsqueeze(0), (0, size - query.size)).squeeze(0)
+        documents_padded = F.pad(torch.from_numpy(doc).unsqueeze(0), (0, size - doc.size)).squeeze(0)
+
+        pred = siamese_transformer(queries_padded.unsqueeze(-1).permute(1, 0).to(device),
+                                   documents_padded.unsqueeze(-1).permute(1, 0).to(device))
+
+        if pred > threshold:
+            tuple_to_add = (int(id.item()), float(pred))
+            retrieved_docs.add(tuple_to_add)
+            if torch.equal(queries_padded, my_query_padded) and relevance.item() == 1:
+                relevant_docs.add(tuple_to_add)
+
+    # Calculate Precision at K
+    retrieved_docs_sorted = sorted(retrieved_docs, key=lambda x: x[1], reverse=True)
+    top_k = retrieved_docs_sorted[:k]
+    rel = sum(1 for docid in top_k if docid in relevant_docs)
+
+    # Return the precision metrics
+    return {
+        "query_index": query_index,
+        "retrieved_documents": k,
+        "precision_at_k": rel / k,
+        "relevant_docids": relevant_docs,
+        "top_k_retrieved_docids": top_k
+    }
+
+def document_embedding_sequence(doc_tokens, word2vec_model, max_tokens):
+    # Truncate or pad the tokens to the specified max_tokens
+    doc_tokens = doc_tokens[:max_tokens] + ['[PAD]'] * max(0, max_tokens - len(doc_tokens))
+
+    np.random.shuffle(doc_tokens)
+
+    # Get word embeddings for the first L tokens
+    word_embeddings = [word2vec_model.wv[word] for word in doc_tokens if word in word2vec_model.wv]
+
+    # If no valid embeddings are found, return zeros
+    if not word_embeddings:
+        return np.zeros(word2vec_model.vector_size)
+
+    # Return the concatenation of the word embeddings
+    return np.concatenate(word_embeddings, axis=0)
+
+
+def collate_fn(batch, size):
+    queries = [torch.Tensor(item['query']) for item in batch]
+    documents = [torch.Tensor(item['document']) for item in batch]
+    relevances = torch.Tensor([item['relevance'] for item in batch])
+    docids = [item['docid'] for item in batch]
+
+    # Print tensor sizes for debugging
+    #print("Query Sizes:", [query.size() for query in queries])
+    #print("Document Sizes:", [document.size() for document in documents])
+
+    max_length = size
+    queries_padded = pad_sequence([F.pad(query.unsqueeze(0), (0, max_length - query.size(0))).squeeze(0) for query in queries], batch_first=True)
+    documents_padded = pad_sequence([F.pad(document.unsqueeze(0), (0, max_length - document.size(0))).squeeze(0) for document in documents], batch_first=True)
+
+    return {'query': queries_padded, 'document': documents_padded, 'relevance': relevances, 'docid': docids}
