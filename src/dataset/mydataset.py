@@ -37,3 +37,16 @@ class corpus_dataset(Dataset):
         tokens = [lemmatizer.lemmatize(word) for word in tokens]
 
         return tokens
+    
+# Embedded dataset class
+class embedded_dataset(Dataset):
+    def __init__(self, data):
+        self.data = data  #una lista di 4-ple
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        query_embedding, document_embedding, relevance, docid = self.data[index]
+
+        return {'query': query_embedding, 'document': document_embedding, 'relevance': relevance, 'docid':docid}
