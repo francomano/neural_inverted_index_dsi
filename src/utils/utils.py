@@ -61,6 +61,7 @@ def evaluate_siamese_query(siamese_model, query_and_document_embeddings, query_i
 
     # Set the model to evaluation mode
     siamese_model.eval()
+    siamese_model.to(device)
 
     # Retrieve the query embedding
     my_query = query_and_document_embeddings[query_index][0]
