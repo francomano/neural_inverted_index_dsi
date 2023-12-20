@@ -40,21 +40,15 @@ class CustomTransformer(nn.Module):
             nn.ReLU(),
             nn.Linear(64, 8)
         )
-        self.layer_norm1 = nn.LayerNorm(embedding_size)
-        self.layer_norm2 = nn.LayerNorm(embedding_size)
         self.dropout = nn.Dropout(0.1)
 
     def forward(self, input_embeddings, query_mask=None):
-
-        x = self.layer_norm1(input_embeddings)
 
         # Self-attention layer
         attended, attention_weights = self.attention(x, x, x, query_mask)
 
         # Residual connection and dropout
         x = x + self.dropout(attended)
-
-        x = self.layer_norm2(x)
 
         output = self.feedforward(x)
 

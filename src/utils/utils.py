@@ -113,8 +113,8 @@ def evaluate_att_siamese_query(siamese_transformer, query_and_document_embedding
 
     # Process each query, document, relevance, and id
     for query, doc, relevance, id in query_and_document_embeddings_sequence:
-        queries_padded = F.pad(torch.from_numpy(query).unsqueeze(0), (0, size - query.size)).squeeze(0).to(dtype=torch.double)
-        documents_padded = F.pad(torch.from_numpy(doc).unsqueeze(0), (0, size - doc.size)).squeeze(0).to(dtype=torch.double)
+        queries_padded = F.pad(torch.from_numpy(query).unsqueeze(0), (0, size - query.size)).squeeze(0)
+        documents_padded = F.pad(torch.from_numpy(doc).unsqueeze(0), (0, size - doc.size)).squeeze(0)
 
         pred = siamese_transformer(queries_padded.unsqueeze(-1).permute(1, 0).to(device),
                                    documents_padded.unsqueeze(-1).permute(1, 0).to(device))
@@ -140,17 +140,14 @@ def evaluate_att_siamese_query(siamese_transformer, query_and_document_embedding
     }
 
 def document_embedding_sequence(doc_tokens, word2vec_model, max_tokens):
-    # Truncate or pad the tokens to the specified max_tokens
-    doc_tokens = doc_tokens[:max_tokens] + ['[PAD]'] * max(0, max_tokens - len(doc_tokens))
-
+ 
     np.random.shuffle(doc_tokens)
 
-    # Get word embeddings for the first L tokens
+    doc_tokens = doc_tokens[:max_tokens] + ['[PAD]'] * max(0, max_tokens - len(doc_tokens))
+
     word_embeddings = [word2vec_model.wv[word] for word in doc_tokens if word in word2vec_model.wv]
 
-    # If no valid embeddings are found, return zeros
     if not word_embeddings:
         return np.zeros(word2vec_model.vector_size)
 
-    # Return the concatenation of the word embeddings
     return np.concatenate(word_embeddings, axis=0)
