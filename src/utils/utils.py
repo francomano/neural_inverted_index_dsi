@@ -112,8 +112,8 @@ def evaluate_att_siamese_query(siamese_transformer, query_and_document_embedding
 
     # Process each query, document, relevance, and id
     for query, doc, relevance, id in query_and_document_embeddings_sequence:
-        queries_padded = F.pad(torch.from_numpy(query).unsqueeze(0), (0, size - query.size)).squeeze(0)
-        documents_padded = F.pad(torch.from_numpy(doc).unsqueeze(0), (0, size - doc.size)).squeeze(0)
+        queries_padded = F.pad(torch.from_numpy(query).unsqueeze(0), (0, size - query.size)).squeeze(0).to(dtype=torch.float64)
+        documents_padded = F.pad(torch.from_numpy(doc).unsqueeze(0), (0, size - doc.size)).squeeze(0).to(dtype=torch.float64)
 
         pred = siamese_transformer(queries_padded.unsqueeze(-1).permute(1, 0).to(device),
                                    documents_padded.unsqueeze(-1).permute(1, 0).to(device))
