@@ -153,20 +153,3 @@ def document_embedding_sequence(doc_tokens, word2vec_model, max_tokens):
 
     # Return the concatenation of the word embeddings
     return np.concatenate(word_embeddings, axis=0)
-
-
-def collate_fn(batch, size):
-    queries = [torch.Tensor(item['query']) for item in batch]
-    documents = [torch.Tensor(item['document']) for item in batch]
-    relevances = torch.Tensor([item['relevance'] for item in batch])
-    docids = [item['docid'] for item in batch]
-
-    # Print tensor sizes for debugging
-    #print("Query Sizes:", [query.size() for query in queries])
-    #print("Document Sizes:", [document.size() for document in documents])
-
-    max_length = size
-    queries_padded = pad_sequence([F.pad(query.unsqueeze(0), (0, max_length - query.size(0))).squeeze(0) for query in queries], batch_first=True)
-    documents_padded = pad_sequence([F.pad(document.unsqueeze(0), (0, max_length - document.size(0))).squeeze(0) for document in documents], batch_first=True)
-
-    return {'query': queries_padded, 'document': documents_padded, 'relevance': relevances, 'docid': docids}
