@@ -44,6 +44,8 @@ class CustomTransformer(nn.Module):
 
     def forward(self, input_embeddings, query_mask=None):
 
+        x = input_embeddings
+
         # Self-attention layer
         attended, attention_weights = self.attention(x, x, x, query_mask)
 
