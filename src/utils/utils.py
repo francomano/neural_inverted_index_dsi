@@ -176,7 +176,7 @@ def save_dataset_to_csv(dataset, file_name):
                     document_embedding_str = 'None'
 
                 # Write the row to the CSV
-                writer.writerow([query_embedding_str, document_embedding_str, example['relevance'], example_type])
+                writer.writerow([query_embedding_str, document_embedding_str, example['document_id'], example['relevance'], example_type])
 
 
 
@@ -187,17 +187,12 @@ def read_dataset_from_csv(file_name):
         next(reader)  # Skip the header
 
         for row in reader:
-            # Convert string embeddings back to numpy arrays
-            query_embedding = None if row[0] == 'None' else np.array(list(map(float, row[0].split(','))))
-            document_embedding = None if row[1] == 'None' else np.array(list(map(float, row[1].split(','))))
-            relevance = int(row[2])
-            example_type = row[3]
-
             example = {
-                'query_embedding': query_embedding,
-                'document_embedding': document_embedding,
-                'relevance': relevance,
-                'type': example_type
+                'query_embedding': None if row[0] == 'None' else np.array(list(map(float, row[0].split(',')))),
+                'document_embedding': None if row[1] == 'None' else np.array(list(map(float, row[1].split(',')))),
+                'document_id':row[2]
+                'relevance': int(row[2]),
+                'type': row[3]
             }
 
             dataset.append(example)
