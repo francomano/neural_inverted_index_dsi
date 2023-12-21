@@ -5,6 +5,8 @@ from sklearn.metrics import precision_score
 import torch
 from torch.nn.utils.rnn import pad_sequence
 import torch.nn.functional as F
+import csv
+
 
 def evaluate_precision_at_k(corpus, tfidf_matrix, num_queries_to_sample, k):
     # Extract all queries from the corpus
@@ -166,7 +168,7 @@ def save_dataset_to_csv(dataset, file_name):
                 document_embedding_str = ','.join(map(str, example['document_embedding']))
 
                 # Write the row to the CSV
-                writer.writerow([query_embedding_str, document_embedding_str, example['relevance'], example_type])
+                writer.writerow([query_embedding_str, document_embedding_str, example['document_id'], example['relevance'], example_type])
 
 
 def read_dataset_from_csv(file_name):
@@ -178,12 +180,14 @@ def read_dataset_from_csv(file_name):
         for row in reader:
             query_embedding = np.array(list(map(float, row[0].split(','))))
             document_embedding = np.array(list(map(float, row[1].split(','))))
-            relevance = int(row[2])
-            example_type = row[3]
+            document_id = row[2]
+            relevance = int(row[3])
+            example_type = row[4]
 
             example = {
                 'query_embedding': query_embedding,
                 'document_embedding': document_embedding,
+                'document_id': document_id,
                 'relevance': relevance,
                 'type': example_type
             }
