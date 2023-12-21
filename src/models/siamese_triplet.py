@@ -34,7 +34,7 @@ class SiameseTriplet(pl.LightningModule):
         return anchor, positive, negative
 
     def training_step(self, batch, batch_idx):
-        anchor, positive, negative, relevance = batch
+        anchor, positive, negative = batch
         out_anchor, out_positive, out_negative = self(anchor, positive, negative)
         loss = self.criterion(out_anchor, out_positive, out_negative)
         self.train_step_outputs.append(loss)
@@ -44,7 +44,7 @@ class SiameseTriplet(pl.LightningModule):
         return loss
     
     def validation_step(self, batch, batch_idx):
-        anchor, positive, negative, relevance = batch
+        anchor, positive, negative= batch
         out_anchor, out_positive, out_negative = self(anchor, positive, negative)
         loss = self.criterion(out_anchor, out_positive, out_negative)
         self.validation_step_outputs.append(loss)
