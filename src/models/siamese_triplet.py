@@ -3,6 +3,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
 
+import torch
+import torch.nn as nn
+import pytorch_lightning as pl
+
+
 
 
 class SiameseTriplet(pl.LightningModule):
@@ -28,43 +33,34 @@ class SiameseTriplet(pl.LightningModule):
         return x
 
     def forward(self, anchor, positive, negative):
-        anchor = self.forward_one(self.fc_query(anchor))
-        positive = self.forward_one(self.fc_doc(positive))
-        negative = self.forward_one(self.fc_doc(negative))
-        return anchor, positive, negative
+        anchor_embedding = self.forward_one(self.fc_query(anchor['query_embedding']))
+        positive_embedding = self.forward_one(self.fc_doc(positive['document_embedding']))
+        negative_embedding = self.forward_one(self.fc_doc(negative['document_embedding']))
+        
+        return anchor_embedding, positive_embedding, negative_embedding
 
     def training_step(self, batch, batch_idx):
         anchor, positive, negative = batch
         out_anchor, out_positive, out_negative = self(anchor, positive, negative)
         loss = self.criterion(out_anchor, out_positive, out_negative)
-        self.train_step_outputs.append(loss)
-
-        # Log the training loss for tensorboard
-        self.log('train_loss', loss, on_epoch=True, prog_bar=True)
+        self.train_step_outputs.append(loss.item())
         return loss
-    
+
     def validation_step(self, batch, batch_idx):
-        anchor, positive, negative= batch
+        anchor, positive, negative = batch
         out_anchor, out_positive, out_negative = self(anchor, positive, negative)
         loss = self.criterion(out_anchor, out_positive, out_negative)
-        self.validation_step_outputs.append(loss)
-
-        # Log the training loss for tensorboard
-        self.log('val_loss', loss, on_epoch=True, prog_bar=True)
+        self.validation_step_outputs.append(loss.item())
         return loss
-    
-    def on_validation_epoch_end(self):
-        if not len(self.train_step_outputs) == 0:
-            epoch_average_train = torch.stack(self.train_step_outputs).mean()
-            self.log("train_epoch_average", epoch_average_train)
-            print("train_loss_avg: ", epoch_average_train)
-            self.train_step_outputs.clear()
 
-        epoch_average = torch.stack(self.validation_step_outputs).mean()
-        self.log("validation_epoch_average", epoch_average)
-        print("val_loss_avg: ", epoch_average)
-        self.validation_step_outputs.clear()
+    def training_epoch_end(self, outputs):
+        avg_loss = torch.tensor(self.train_step_outputs).mean()
+        print(f'Training Epoch {self.current_epoch}: Avg Loss: {avg_loss}')
 
+    def validation_epoch_end(self, outputs):
+        avg_loss = torch.tensor(self.validation_step_outputs).mean()
+        print(f'Validation Epoch {self.current_epoch}: Avg Loss: {avg_loss}')
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        return optimizer
