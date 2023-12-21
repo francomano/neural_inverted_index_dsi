@@ -57,9 +57,18 @@ class SiameseTriplet(pl.LightningModule):
         avg_loss = torch.tensor(self.train_step_outputs).mean()
         print(f'Training Epoch {self.current_epoch}: Avg Loss: {avg_loss}')
 
-    def validation_epoch_end(self, outputs):
-        avg_loss = torch.tensor(self.validation_step_outputs).mean()
-        print(f'Validation Epoch {self.current_epoch}: Avg Loss: {avg_loss}')
+    def on_validation_epoch_end(self):
+        if not len(self.train_step_outputs) == 0:
+            epoch_average_train = torch.stack(self.train_step_outputs).mean()
+            self.log("train_epoch_average", epoch_average_train)
+            print("train_loss_avg: ", epoch_average_train)
+            self.train_step_outputs.clear()
+        if not len(self.validation_step_outputs) == 0:
+            epoch_average = torch.stack(self.validation_step_outputs).mean()
+            self.log("validation_epoch_average", epoch_average)
+            print("val_loss_avg: ", epoch_average)
+            self.validation_step_outputs.clear()
+
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
