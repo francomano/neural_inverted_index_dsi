@@ -187,16 +187,15 @@ def read_dataset_from_csv(file_name):
         next(reader)  # Skip the header
 
         for row in reader:
-            query_embedding = np.array(list(map(float, row[0].split(','))))
-            document_embedding = np.array(list(map(float, row[1].split(','))))
-            document_id = row[2]
-            relevance = int(row[3])
-            example_type = row[4]
+            # Convert string embeddings back to numpy arrays
+            query_embedding = None if row[0] == 'None' else np.array(list(map(float, row[0].split(','))))
+            document_embedding = None if row[1] == 'None' else np.array(list(map(float, row[1].split(','))))
+            relevance = int(row[2])
+            example_type = row[3]
 
             example = {
                 'query_embedding': query_embedding,
                 'document_embedding': document_embedding,
-                'document_id': document_id,
                 'relevance': relevance,
                 'type': example_type
             }
@@ -204,3 +203,4 @@ def read_dataset_from_csv(file_name):
             dataset.append(example)
     
     return dataset
+
