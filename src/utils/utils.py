@@ -186,16 +186,25 @@ def read_dataset_from_csv(file_name):
         reader = csv.reader(file)
         next(reader)  # Skip the header
 
+        # Initialize a temporary list to store the triplet
+        triplet = []
+
         for row in reader:
             example = {
                 'query_embedding': None if row[0] == 'None' else np.array(list(map(float, row[0].split(',')))),
                 'document_embedding': None if row[1] == 'None' else np.array(list(map(float, row[1].split(',')))),
-                'document_id':row[2],
+                'document_id': row[2],
                 'relevance': int(row[3]),
                 'type': row[4]
             }
 
-            dataset.append(example)
-    
+            # Add the example to the triplet
+            triplet.append(example)
+
+            # When the triplet is complete (3 examples), add it to the dataset
+            if len(triplet) == 3:
+                dataset.append(tuple(triplet))
+                triplet = []  # Reset the triplet list for the next set of examples
+
     return dataset
 
