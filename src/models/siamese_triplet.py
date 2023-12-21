@@ -53,10 +53,6 @@ class SiameseTriplet(pl.LightningModule):
         self.validation_step_outputs.append(loss.item())
         return loss
 
-    def training_epoch_end(self, outputs):
-        avg_loss = torch.tensor(self.train_step_outputs).mean()
-        print(f'Training Epoch {self.current_epoch}: Avg Loss: {avg_loss}')
-
     def on_validation_epoch_end(self):
         if not len(self.train_step_outputs) == 0:
             epoch_average_train = torch.stack(self.train_step_outputs).mean()
