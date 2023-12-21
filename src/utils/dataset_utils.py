@@ -87,6 +87,7 @@ def build_triplet_dataset_with_avg_embeddings(word2vec_model, num_docs_per_query
             positive_example = {
                 'query_embedding': get_embedding(query,word2vec_model),
                 'document_embedding': get_embedding(document_contents,word2vec_model),
+                'document_id': document_id,
                 'relevance': 1
             }
 
@@ -99,6 +100,7 @@ def build_triplet_dataset_with_avg_embeddings(word2vec_model, num_docs_per_query
             negative_example = {
                 'query_embedding': get_embedding(query,word2vec_model),
                 'document_embedding': get_embedding(document_contents_neg,word2vec_model),
+                'document_id': document_id_neg,
                 'relevance': 0
             }
 
@@ -109,6 +111,7 @@ def build_triplet_dataset_with_avg_embeddings(word2vec_model, num_docs_per_query
             anchor_example = {
                 'query_embedding': get_embedding(query,word2vec_model),
                 'document_embedding': get_embedding(document_contents_anchor,word2vec_model),
+                'document_id': document_id_anchor,
                 'relevance': 1
             }
 
