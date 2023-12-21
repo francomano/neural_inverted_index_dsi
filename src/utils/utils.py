@@ -159,7 +159,7 @@ def save_dataset_to_csv(dataset, file_name):
     with open(file_name, 'w', newline='') as file:
         writer = csv.writer(file)
         # Write the header
-        writer.writerow(['Query Embedding', 'Document Embedding', 'Relevance', 'Type'])
+        writer.writerow(['Query Embedding', 'Document Embedding', 'Document ID', 'Relevance', 'Type'])
 
         for triplet in dataset:
             for example_type, example in zip(['anchor', 'positive', 'negative'], triplet):
@@ -191,8 +191,8 @@ def read_dataset_from_csv(file_name):
                 'query_embedding': None if row[0] == 'None' else np.array(list(map(float, row[0].split(',')))),
                 'document_embedding': None if row[1] == 'None' else np.array(list(map(float, row[1].split(',')))),
                 'document_id':row[2],
-                'relevance': int(row[2]),
-                'type': row[3]
+                'relevance': int(row[3]),
+                'type': row[4]
             }
 
             dataset.append(example)
