@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
+from neural_inverted_index_dsi.src.utils.losses import ContrastiveLoss
 
 class AttentionLayer(nn.Module):
     def __init__(self, input_size):
@@ -40,6 +41,7 @@ class CustomTransformer(nn.Module):
             nn.ReLU(),
             nn.Linear(64, 8)
         )
+
         self.dropout = nn.Dropout(0.1)
 
     def forward(self, input_embeddings, query_mask=None):
@@ -55,6 +57,7 @@ class CustomTransformer(nn.Module):
         output = self.feedforward(x)
 
         return output
+
 
 class SiameseTransformer(pl.LightningModule):
     def __init__(self, embedding_size):
@@ -105,6 +108,86 @@ class SiameseTransformer(pl.LightningModule):
 
         self.log('val_loss', loss, on_epoch=True, prog_bar=True)
 
+        accuracy = self.calculate_accuracy(similarity, relevance)
+        self.validation_accuracy_outputs.append(accuracy)
+
+        return loss
+
+    def on_validation_epoch_end(self):
+        if not len(self.train_step_outputs) == 0:
+            epoch_average_train = torch.stack(self.train_step_outputs).mean()
+            self.log("train_epoch_average", epoch_average_train)
+            print("train_loss_avg: ", epoch_average_train)
+            self.train_step_outputs.clear()
+        if not len(self.validation_step_outputs) == 0:
+            epoch_average = torch.stack(self.validation_step_outputs).mean()
+            self.log("validation_epoch_average", epoch_average)
+            print("val_loss_avg: ", epoch_average)
+            self.validation_step_outputs.clear()
+            accuracy_avg = sum(self.validation_accuracy_outputs) / len(self.validation_accuracy_outputs)
+            print("accuracy: ", accuracy_avg)
+            self.validation_accuracy_outputs.clear()
+
+    def calculate_accuracy(self, predictions, labels):
+        predictions = (predictions > 0.5).float()  # Assuming binary classification
+        correct = (predictions == labels).float()
+        accuracy = correct.sum() / len(correct)
+        return accuracy.item()
+
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=0.001)
+
+
+class SiameseTransformerContrastive(pl.LightningModule):
+    def __init__(self, embedding_size):
+        super(SiameseTransformerContrastive, self).__init__()
+        self.validation_step_outputs = []
+        self.train_step_outputs = []
+        self.validation_accuracy_outputs = []
+
+        self.transformer = CustomTransformer(embedding_size)
+
+        self.criterion = ContrastiveLoss()
+
+    def forward(self, query_embeddings, document_embeddings, query_mask=None):
+        query_output = self.transformer(query_embeddings, query_mask)
+        document_output = self.transformer(document_embeddings)
+
+        return query_output, document_output
+
+
+    def training_step(self, batch, batch_idx):
+        query = batch['query']
+        document = batch['document']
+        relevance = batch['relevance']
+
+        # Forward pass
+        query_output, document_output = self(query.float(), document.float())
+        # Compute loss
+        loss = self.criterion(query_output.squeeze(), document_output.squeeze(), relevance)
+        # Append loss to list
+        self.train_step_outputs.append(loss)
+
+        self.log('train_loss', loss, on_epoch=True, prog_bar=True)
+
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        query = batch['query']
+        document = batch['document']
+        relevance = batch['relevance']
+
+        # Forward pass
+        query_output, document_output = self(query.float(), document.float())
+        # Compute loss
+        loss = self.criterion(query_output.squeeze(), document_output.squeeze(), relevance)
+        # Append loss to list
+        self.validation_step_outputs.append(loss)
+        self.log('val_loss', loss, on_epoch=True, prog_bar=True)
+
+        # Compute accuracy
+        similarity = F.cosine_similarity(query_output, document_output, dim=1)
         accuracy = self.calculate_accuracy(similarity, relevance)
         self.validation_accuracy_outputs.append(accuracy)
 
