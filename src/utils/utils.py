@@ -190,7 +190,7 @@ def read_dataset_from_csv(file_name):
             example = {
                 'query_embedding': None if row[0] == 'None' else np.array(list(map(float, row[0].split(',')))),
                 'document_embedding': None if row[1] == 'None' else np.array(list(map(float, row[1].split(',')))),
-                'document_id':row[2]
+                'document_id':row[2],
                 'relevance': int(row[2]),
                 'type': row[3]
             }
