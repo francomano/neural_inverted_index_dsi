@@ -151,3 +151,43 @@ def document_embedding_sequence(doc_tokens, word2vec_model, max_tokens):
         return np.zeros(word2vec_model.vector_size)
 
     return np.concatenate(word_embeddings, axis=0)
+
+
+def save_dataset_to_csv(dataset, file_name):
+    with open(file_name, 'w', newline='') as file:
+        writer = csv.writer(file)
+        # Write the header
+        writer.writerow(['Query Embedding', 'Document Embedding', 'Relevance', 'Type'])
+
+        for triplet in dataset:
+            for example_type, example in zip(['anchor', 'positive', 'negative'], triplet):
+                # Convert embeddings to string
+                query_embedding_str = ','.join(map(str, example['query_embedding']))
+                document_embedding_str = ','.join(map(str, example['document_embedding']))
+
+                # Write the row to the CSV
+                writer.writerow([query_embedding_str, document_embedding_str, example['relevance'], example_type])
+
+
+def read_dataset_from_csv(file_name):
+    dataset = []
+    with open(file_name, 'r') as file:
+        reader = csv.reader(file)
+        next(reader)  # Skip the header
+
+        for row in reader:
+            query_embedding = np.array(list(map(float, row[0].split(','))))
+            document_embedding = np.array(list(map(float, row[1].split(','))))
+            relevance = int(row[2])
+            example_type = row[3]
+
+            example = {
+                'query_embedding': query_embedding,
+                'document_embedding': document_embedding,
+                'relevance': relevance,
+                'type': example_type
+            }
+
+            dataset.append(example)
+    
+    return dataset
