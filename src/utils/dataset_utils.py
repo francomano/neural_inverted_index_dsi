@@ -97,8 +97,8 @@ def build_triplet_dataset_with_avg_embeddings(word2vec_model, num_docs_per_query
             jsondoc_neg = random.choice([json.loads(hit.raw) for hit in other_hits])
             document_id_neg, document_contents_neg = jsondoc_neg["id"], jsondoc_neg["contents"]
             negative_example = {
-                'query_embedding': get_embedding(query),
-                'document_embedding': get_embedding(document_contents_neg),
+                'query_embedding': get_embedding(query,word2vec_model),
+                'document_embedding': get_embedding(document_contents_neg,word2vec_model),
                 'relevance': 0
             }
 
@@ -107,8 +107,8 @@ def build_triplet_dataset_with_avg_embeddings(word2vec_model, num_docs_per_query
             jsondoc_anchor = json.loads(anchor_hit.raw)
             document_id_anchor, document_contents_anchor = jsondoc_anchor["id"], jsondoc_anchor["contents"]
             anchor_example = {
-                'query_embedding': get_embedding(query),
-                'document_embedding': get_embedding(document_contents_anchor),
+                'query_embedding': get_embedding(query,word2vec_model),
+                'document_embedding': get_embedding(document_contents_anchor,word2vec_model),
                 'relevance': 1
             }
 
