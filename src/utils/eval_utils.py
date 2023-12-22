@@ -140,18 +140,18 @@ def precision_at_k(model, dataset, k=10):
 
     with torch.no_grad():
         for data in dataset:
-            query_embedding = torch.FloatTensor(data['query'])
+            query_embedding = torch.FloatTensor(data[0])
             processed_query_emb = model(query_embedding.unsqueeze(0))
 
             # Process and score each document for the given query
             doc_scores = []
             for doc in dataset:
-                if doc['query'] == data['query']:
-                    document_embedding = torch.FloatTensor(doc['document'])
+                if doc[0] == data[0]:
+                    document_embedding = torch.FloatTensor(doc[1])
                     processed_doc_emb = model(document_embedding.unsqueeze(0))
                     # Compute cosine similarity
                     score = F.cosine_similarity(processed_query_emb, processed_doc_emb).item()
-                    doc_scores.append((score, doc['relevance']))
+                    doc_scores.append((score, doc[2]))
 
             # Sort based on scores
             doc_scores.sort(key=lambda x: x[0], reverse=True)
