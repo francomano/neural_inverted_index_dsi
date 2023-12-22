@@ -146,7 +146,7 @@ def precision_at_k(model, dataset, k=10):
             # Process and score each document for the given query
             doc_scores = []
             for doc in dataset:
-                if doc[0] == data[0]:
+                if np.array_equal(doc[0], data[0]):
                     document_embedding = torch.FloatTensor(doc[1])
                     processed_doc_emb = model(document_embedding.unsqueeze(0))
                     # Compute cosine similarity
