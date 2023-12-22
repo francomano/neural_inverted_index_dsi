@@ -65,20 +65,66 @@ class SiameseTriplet(pl.LightningModule):
 
 
 class SiameseNetworkPL(pl.LightningModule):
-    def __init__(self, embedding_size, learning_rate=1e-3, margin=1.0):
+    def __init__(self, embedding_size, learning_rate=1e-3, margin=1.0, type=None):
         super(SiameseNetworkPL, self).__init__()
 
         self.validation_step_outputs = []
         self.train_step_outputs = []
 
         # Network architecture
-        self.network = nn.Sequential(
-            nn.Linear(embedding_size, 256),
+        if type == 'linear':
+            self.network = nn.Sequential(
+                nn.Linear(embedding_size, 256),
+                nn.ReLU(),
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Linear(128, embedding_size)
+            )
+        elif type == 'conv':
+            self.network = nn.Sequential(
+                # Reshape layer to add a channel dimension (N, C, L)
+                nn.Unflatten(1, (1, embedding_size)),
+
+                # 1D Convolution layers
+                nn.Conv1d(in_channels=1, out_channels=128, kernel_size=3, padding=1),
+                nn.ReLU(),
+                nn.MaxPool1d(kernel_size=2, stride=2),
+
+                nn.Conv1d(in_channels=128, out_channels=64, kernel_size=3, padding=1),
+                nn.ReLU(),
+                nn.MaxPool1d(kernel_size=2, stride=2),
+
+                nn.Flatten(),   # Flatten the output for the linear layers
+
+                # Linear layers + dropout
+                nn.Linear(64 * (embedding_size // 4), 256),
+                nn.ReLU(),
+                nn.Dropout(p=0.5),
+
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Dropout(p=0.5),
+
+                nn.Linear(128, embedding_size)
+            )
+        elif type == 'lstm':
+            self.network = nn.Sequential(
+            # LSTM layer
+            nn.LSTM(
+                input_size=embedding_size,  # Assuming each time step of the sequence is of 'embedding_size' dimension
+                hidden_size=128,            # Size of the hidden state
+                num_layers=2,               # Number of LSTM layers
+                batch_first=True,           # Input and output tensors are provided as (batch, seq, feature)
+                dropout=0.2                 # Dropout for regularization
+            ),
+            # Flatten the output for the fully connected layers
+            nn.Flatten(),
+            # Fully connected layers
+            nn.Linear(128, 256),
             nn.ReLU(),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Linear(128, embedding_size)
+            nn.Linear(256, embedding_size)
         )
+
 
         self.margin = margin
         self.learning_rate = learning_rate
