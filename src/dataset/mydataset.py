@@ -63,3 +63,19 @@ class embedded_dataset_sequence(Dataset):
         query_embedding, document_embedding, relevance, docid = self.data[index]
 
         return {'query': query_embedding, 'document': document_embedding, 'relevance': relevance, 'docid':docid}
+    
+
+class SiameseDataset(Dataset):
+    def __init__(self, triplets):
+        self.triplets = triplets
+
+    def __len__(self):
+        return len(self.triplets)
+
+    def __getitem__(self, idx):
+        anchor_embedding = torch.FloatTensor(self.triplets[idx][0]['query_embedding'])
+        positive_embedding = torch.FloatTensor(self.triplets[idx][1]['document_embedding'])
+        negative_embedding = torch.FloatTensor(self.triplets[idx][2]['document_embedding'])
+
+
+        return anchor_embedding, positive_embedding, negative_embedding
