@@ -129,3 +129,37 @@ def evaluate_att_siamese_query(siamese_transformer, query_and_document_embedding
         "relevant_docids": relevant_docs,
         "top_k_retrieved_docids": top_k
     }
+
+
+def precision_at_k(model, dataset, k=10):
+    # Initialize precision
+    precisions = []
+
+    # Ensure the model is in evaluation mode
+    model.eval()
+
+    with torch.no_grad():
+        for data in dataset:
+            query_embedding = torch.FloatTensor(data['query'])
+            processed_query_emb = model(query_embedding.unsqueeze(0))
+
+            # Process and score each document for the given query
+            doc_scores = []
+            for doc in dataset:
+                if doc['query'] == data['query']:
+                    document_embedding = torch.FloatTensor(doc['document'])
+                    processed_doc_emb = model(document_embedding.unsqueeze(0))
+                    # Compute cosine similarity
+                    score = F.cosine_similarity(processed_query_emb, processed_doc_emb).item()
+                    doc_scores.append((score, doc['relevance']))
+
+            # Sort based on scores
+            doc_scores.sort(key=lambda x: x[0], reverse=True)
+
+            # Compute precision at K
+            top_k_relevant = sum(relevance for _, relevance in doc_scores[:k])
+            precision = top_k_relevant / k
+            precisions.append(precision)
+
+    # Return the average precision at K
+    return sum(precisions) / len(precisions) if precisions else 0
