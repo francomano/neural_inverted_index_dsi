@@ -68,6 +68,9 @@ class SiameseNetworkPL(pl.LightningModule):
     def __init__(self, embedding_size, learning_rate=1e-3, margin=1.0):
         super(SiameseNetworkPL, self).__init__()
 
+        self.validation_step_outputs = []
+        self.train_step_outputs = []
+
         # Network architecture
         self.network = nn.Sequential(
             nn.Linear(embedding_size, 256),
@@ -106,12 +109,19 @@ class SiameseNetworkPL(pl.LightningModule):
         loss = self.triplet_loss(anchor_output, positive_output, negative_output)
         return {'val_loss': loss}
 
-    def on_validation_epoch_end(self, outputs):
-        # Aggregate validation loss
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        self.log('avg_val_loss', avg_loss)
+    def on_validation_epoch_end(self):
+        if not len(self.train_step_outputs) == 0:
+            epoch_average_train = torch.stack(self.train_step_outputs).mean()
+            self.log("train_epoch_average", epoch_average_train)
+            print("train_loss_avg: ", epoch_average_train)
+            self.train_step_outputs.clear()
+        if not len(self.validation_step_outputs) == 0:
+            epoch_average = torch.stack(self.validation_step_outputs).mean()
+            self.log("validation_epoch_average", epoch_average)
+            print("val_loss_avg: ", epoch_average)
+            self.validation_step_outputs.clear()
+
 
     def configure_optimizers(self):
-        # Configure optimizers
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         return optimizer
