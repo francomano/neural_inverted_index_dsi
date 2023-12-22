@@ -1,13 +1,6 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import pytorch_lightning as pl
-
-import torch
-import torch.nn as nn
-import pytorch_lightning as pl
-
-
 
 
 class SiameseTriplet(pl.LightningModule):
@@ -67,5 +60,58 @@ class SiameseTriplet(pl.LightningModule):
 
 
     def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        return optimizer
+
+
+class SiameseNetworkPL(pl.LightningModule):
+    def __init__(self, embedding_size, learning_rate=1e-3, margin=1.0):
+        super(SiameseNetworkPL, self).__init__()
+
+        # Network architecture
+        self.network = nn.Sequential(
+            nn.Linear(embedding_size, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, embedding_size)
+        )
+
+        self.learning_rate = learning_rate
+        self.triplet_loss = nn.TripletMarginLoss(margin=margin)
+
+    def forward(self, x):
+        # Forward pass for one input
+        return self.network(x)
+
+    def training_step(self, batch, batch_idx):
+        # Training step
+        anchor, positive, negative = batch
+        anchor_output = self.forward(anchor)
+        positive_output = self.forward(positive)
+        negative_output = self.forward(negative)
+
+        # Calculate triplet loss
+        loss = self.triplet_loss(anchor_output, positive_output, negative_output)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        # Validation step, similar to training_step
+        anchor, positive, negative = batch
+        anchor_output = self.forward(anchor)
+        positive_output = self.forward(positive)
+        negative_output = self.forward(negative)
+
+        # Calculate loss
+        loss = self.triplet_loss(anchor_output, positive_output, negative_output)
+        return {'val_loss': loss}
+
+    def on_validation_epoch_end(self, outputs):
+        # Aggregate validation loss
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        self.log('avg_val_loss', avg_loss)
+
+    def configure_optimizers(self):
+        # Configure optimizers
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         return optimizer
