@@ -131,21 +131,27 @@ def evaluate_att_siamese_query(siamese_transformer, query_and_document_embedding
     }
 
 
-def precision_at_k(model, dataset, k=10):
+def precision_at_k(model, dataset, k=10, max_num_queries=None):
     # Initialize precision
     precisions = []
 
     # Ensure the model is in evaluation mode
     model.eval()
 
+    # Randomly sample a subset of queries if num_queries is specified
+    if max_num_queries is not None and max_num_queries < len(dataset):
+        sampled_dataset = random.sample(dataset, max_num_queries)
+    else:
+        sampled_dataset = dataset
+
     with torch.no_grad():
-        for data in dataset:
+        for data in sampled_dataset:
             query_embedding = torch.FloatTensor(data[0])
             processed_query_emb = model(query_embedding.unsqueeze(0))
 
             # Process and score each document for the given query
             doc_scores = []
-            for doc in dataset:
+            for doc in sampled_dataset:
                 if np.array_equal(doc[0], data[0]):
                     document_embedding = torch.FloatTensor(doc[1])
                     processed_doc_emb = model(document_embedding.unsqueeze(0))
