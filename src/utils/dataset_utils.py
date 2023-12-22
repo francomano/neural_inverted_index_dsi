@@ -2,6 +2,7 @@ import json
 import random
 import pyserini.search
 import numpy as np
+import csv
 from nltk.tokenize import word_tokenize
 
 def build_dataset(num_docs_per_query=10, num_topics=None):
@@ -117,5 +118,52 @@ def build_triplet_dataset_with_avg_embeddings(word2vec_model, num_docs_per_query
 
             # Add the triplet to the dataset
             dataset.append((anchor_example, positive_example, negative_example))
+
+    return dataset
+
+
+def save_dataset_to_csv(dataset, file_name):
+    with open(file_name, 'w', newline='') as file:
+        writer = csv.writer(file)
+        # Write the header
+        writer.writerow(['Query Embedding', 'Document Embedding', 'Document ID', 'Relevance', 'Type'])
+
+        for triplet in dataset:
+            for example_type, example in zip(['anchor', 'positive', 'negative'], triplet):
+                # Directly convert query_embedding to string
+                query_embedding_str = ','.join(map(str, example['query_embedding']))
+
+                # Directly convert document_embedding to string
+                document_embedding_str = ','.join(map(str, example['document_embedding']))
+
+                # Write the row to the CSV
+                writer.writerow([query_embedding_str, document_embedding_str, example['document_id'], example['relevance'], example_type])
+
+
+def read_dataset_from_csv(file_name):
+    dataset = []
+    with open(file_name, 'r') as file:
+        reader = csv.reader(file)
+        next(reader)  # Skip the header
+
+        # Initialize a temporary list to store the triplet
+        triplet = []
+
+        for row in reader:
+            example = {
+                'query_embedding': None if row[0] == 'None' else np.array(list(map(float, row[0].split(',')))),
+                'document_embedding': None if row[1] == 'None' else np.array(list(map(float, row[1].split(',')))),
+                'document_id': row[2],
+                'relevance': int(row[3]),
+                'type': row[4]
+            }
+
+            # Add the example to the triplet
+            triplet.append(example)
+
+            # When the triplet is complete (3 examples), add it to the dataset
+            if len(triplet) == 3:
+                dataset.append(tuple(triplet))
+                triplet = []  # Reset the triplet list for the next set of examples
 
     return dataset
