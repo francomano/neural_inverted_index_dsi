@@ -80,8 +80,9 @@ class SiameseNetworkPL(pl.LightningModule):
             nn.Linear(128, embedding_size)
         )
 
+        self.margin = margin
         self.learning_rate = learning_rate
-        self.triplet_loss = nn.TripletMarginLoss(margin=margin)
+        self.criterion = nn.TripletMarginLoss(margin=margin)
 
     def forward(self, x):
         # Forward pass for one input
@@ -95,7 +96,10 @@ class SiameseNetworkPL(pl.LightningModule):
         negative_output = self.forward(negative)
 
         # Calculate triplet loss
-        loss = self.triplet_loss(anchor_output, positive_output, negative_output)
+        loss = self.criterion(anchor_output, positive_output, negative_output)
+        # Append loss to list for epoch average
+        self.train_step_outputs.append(loss)
+
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -106,8 +110,11 @@ class SiameseNetworkPL(pl.LightningModule):
         negative_output = self.forward(negative)
 
         # Calculate loss
-        loss = self.triplet_loss(anchor_output, positive_output, negative_output)
-        return {'val_loss': loss}
+        loss = self.criterion(anchor_output, positive_output, negative_output)
+        # Append loss to list for epoch average
+        self.validation_step_outputs.append(loss)
+
+        return loss
 
     def on_validation_epoch_end(self):
         if not len(self.train_step_outputs) == 0:
