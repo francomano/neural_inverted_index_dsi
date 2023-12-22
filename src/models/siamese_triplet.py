@@ -33,9 +33,9 @@ class SiameseTriplet(pl.LightningModule):
         return x
 
     def forward(self, anchor, positive, negative):
-        anchor_embedding = self.forward_one(self.fc_query(anchor['query_embedding']))
-        positive_embedding = self.forward_one(self.fc_doc(positive['document_embedding']))
-        negative_embedding = self.forward_one(self.fc_doc(negative['document_embedding']))
+        anchor_embedding = self.forward_one(self.fc_query(anchor))
+        positive_embedding = self.forward_one(self.fc_doc(positive))
+        negative_embedding = self.forward_one(self.fc_doc(negative))
         
         return anchor_embedding, positive_embedding, negative_embedding
 

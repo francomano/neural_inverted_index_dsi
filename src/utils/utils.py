@@ -163,20 +163,15 @@ def save_dataset_to_csv(dataset, file_name):
 
         for triplet in dataset:
             for example_type, example in zip(['anchor', 'positive', 'negative'], triplet):
-                # Check and convert query_embedding to string
-                if example['query_embedding'] is not None:
-                    query_embedding_str = ','.join(map(str, example['query_embedding']))
-                else:
-                    query_embedding_str = 'None'
+                # Directly convert query_embedding to string
+                query_embedding_str = ','.join(map(str, example['query_embedding']))
 
-                # Check and convert document_embedding to string
-                if example['document_embedding'] is not None:
-                    document_embedding_str = ','.join(map(str, example['document_embedding']))
-                else:
-                    document_embedding_str = 'None'
+                # Directly convert document_embedding to string
+                document_embedding_str = ','.join(map(str, example['document_embedding']))
 
                 # Write the row to the CSV
                 writer.writerow([query_embedding_str, document_embedding_str, example['document_id'], example['relevance'], example_type])
+
 
 
 
