@@ -51,7 +51,7 @@ def get_embedding(sentence, word2vec_model):
     
     # If no valid word embeddings found, return None
     if not word_embeddings:
-        return None
+        return np.zeros(word2vec_model.vector_size)
     
     # Calculate the average embedding
     avg_embedding = np.mean(word_embeddings, axis=0)
