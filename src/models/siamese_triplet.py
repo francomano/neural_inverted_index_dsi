@@ -65,14 +65,14 @@ class SiameseTriplet(pl.LightningModule):
 
 
 class SiameseNetworkPL(pl.LightningModule):
-    def __init__(self, input_size, output_size, learning_rate=1e-3, margin=1.0, type=None):
+    def __init__(self, input_size, output_size, learning_rate=1e-3, margin=1.0, arch_type=None):
         super(SiameseNetworkPL, self).__init__()
 
         self.validation_step_outputs = []
         self.train_step_outputs = []
 
         # Network architecture
-        if type == 'linear':
+        if arch_type == 'linear':
             self.network = nn.Sequential(
                 nn.Linear(input_size, 256),
                 nn.ReLU(),
@@ -80,7 +80,7 @@ class SiameseNetworkPL(pl.LightningModule):
                 nn.ReLU(),
                 nn.Linear(128, output_size)
             )
-        elif type == 'conv':
+        elif arch_type == 'conv':
             self.network = nn.Sequential(
                 # Reshape layer to add a channel dimension (N, C, L)
                 nn.Unflatten(1, (1, input_size)),
@@ -107,7 +107,7 @@ class SiameseNetworkPL(pl.LightningModule):
 
                 nn.Linear(128, output_size)
             )
-        elif type == 'lstm':
+        elif arch_type == 'lstm':
             self.network = nn.Sequential(
             # LSTM layer
             nn.LSTM(
