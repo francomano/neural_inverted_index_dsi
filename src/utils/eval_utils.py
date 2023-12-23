@@ -191,8 +191,8 @@ def precision_at_k_v2(model, dataset, k=10, max_queries=None):
     with torch.no_grad():
         for i, data in enumerate(sampled_dataset):
             # Pass the query and document through the model
-            processed_query_emb = model(torch.FloatTensor(data[0]))
-            processed_doc_emb = model(torch.FloatTensor(data[1]))
+            processed_query_emb = model(torch.FloatTensor(data[0])).unsqueeze(0)
+            processed_doc_emb = model(torch.FloatTensor(data[1])).unsqueeze(0)
             # Compute cosine similarity
             score = F.cosine_similarity(processed_query_emb, processed_doc_emb).item()
             # Append the score and relevance to doc_scores
