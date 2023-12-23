@@ -169,3 +169,43 @@ def precision_at_k(model, dataset, k=10, max_num_queries=None):
 
     # Return the average precision at K
     return sum(precisions) / len(precisions) if precisions else 0
+
+
+
+
+def precision_at_k_v2(model, dataset, k=10, max_queries=None):
+    # Initialize precision
+    precisions = []
+    # Initialize doc_scores
+    doc_scores = []
+
+    # Ensure the model is in evaluation mode
+    model.eval()
+
+    # Randomly sample a subset of queries if num_queries is specified
+    if max_queries is not None and max_queries < len(dataset):
+        sampled_dataset = random.sample(dataset, max_queries)
+    else:
+        sampled_dataset = dataset
+
+    with torch.no_grad():
+        for i, data in enumerate(sampled_dataset):
+            # Pass the query and document through the model
+            processed_query_emb = model(torch.FloatTensor(data[0]))
+            processed_doc_emb = model(torch.FloatTensor(data[1]))
+            # Compute cosine similarity
+            score = F.cosine_similarity(processed_query_emb, processed_doc_emb).item()
+            # Append the score and relevance to doc_scores
+            doc_scores.append((data[3], data[2], score))  
+
+            if i % k == 0 and i != 0:
+                # Sort based on scores the last k documents
+                doc_scores[i-k:i] = sorted(doc_scores[i-k:i], key=lambda x: x[2], reverse=True)
+
+                # Compute precision at K for the last k documents
+                precision = sum(relevance for _, relevance, _ in doc_scores[i-k:i]) / k
+                # Append precision to precisions
+                precisions.append(precision)          
+
+    # Return the average precision at K and the top k retrieved documents
+    return sum(precisions) / len(precisions) if precisions else 0, sorted(doc_scores, key=lambda x: x[2], reverse=True)[:k]
