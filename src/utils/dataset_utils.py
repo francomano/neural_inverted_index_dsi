@@ -262,4 +262,4 @@ def build_dicts(max_topics=2, max_docs=3, max_tokens=None, vector_size=None):
         documents[docid]['first_L_emb'] = compute_embedding(raw_doc, w2v_model, max_tokens)
 
     # Return the three dictionaries
-    return queries, documents
+    return queries, documents, w2v_model
