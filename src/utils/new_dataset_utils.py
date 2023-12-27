@@ -93,28 +93,4 @@ def build_dicts(max_topics=2, max_docs=3, max_tokens=None, vector_size=None):
     return queries, documents
 
 
-# Define the function that builds the dataset
-def build_dataset(queries, documents):
-    # Initialize the dataset list
-    dataset = []
-    
-    # For each query
-    for query_id, query_data in queries.items():
-        # Get the list of correlated documents
-        docid_list = set(query_data['docids_list'])
-
-        # Add positive examples
-        for doc_id in docid_list:
-            dataset.append((query_id, doc_id, 1))
-
-        # Create a set of all document IDs, excluding those in docid_list
-        all_doc_ids = set(documents.keys()) - docid_list
-
-        # Add negative examples
-        for doc_id in set(random.sample(all_doc_ids, len(docid_list))):
-            dataset.append((query_id, doc_id, 0))
-
-    # Return the dataset
-    return dataset
-
 
