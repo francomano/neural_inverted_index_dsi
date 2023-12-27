@@ -41,6 +41,9 @@ class QueryDocumentDataset(Dataset):
 
         # Return the dataset
         return dataset
+    
+    def set_ret_type(self, new_ret_type):
+        self.ret_type = new_ret_type
 
     def __len__(self):
         return len(self.data)
