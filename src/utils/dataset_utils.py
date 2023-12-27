@@ -188,7 +188,7 @@ def compute_embedding(sentence, word2vec_model, max_tokens=None):
     tokens = tokens if not max_tokens else tokens[:max_tokens] + ['[PAD]'] * max(0, max_tokens - len(tokens))
     
     # Get the word embeddings for each token
-    word_embeddings = [word2vec_model.wv[token.lower()] for token in tokens if token in word2vec_model.wv]
+    word_embeddings = [word2vec_model.wv[token.lower()] for token in tokens if token.lower() in word2vec_model.wv]
 
     # If no valid word embeddings found, return zero vector
     if not word_embeddings:
