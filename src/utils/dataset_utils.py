@@ -216,7 +216,7 @@ def build_dicts(max_topics=2, max_docs=3, max_tokens=None, vector_size=None):
     documents = dict()
 
     # Initialize w2v data
-    w2v_train_data = list()
+    corpus = list()
 
     # Optionally limit the number of topics processed
     topics_items = list(topics.items())[:max_topics] if max_topics else topics.items()
@@ -228,7 +228,7 @@ def build_dicts(max_topics=2, max_docs=3, max_tokens=None, vector_size=None):
             'raw': topic_info['title'],     # Raw query
             'docids_list': list()}          # List of correlated documents
         # Append the query embedding to the w2v data
-        w2v_train_data.append(preprocess_text(queries[id]['raw']))
+        corpus.append(preprocess_text(queries[id]['raw']))
 
         # Perform the search
         hits = searcher.search(queries[id]['raw'], max_docs)
@@ -240,13 +240,10 @@ def build_dicts(max_topics=2, max_docs=3, max_tokens=None, vector_size=None):
                 # Retrieve document content as a string and update the documents dictionary
                 documents[hit.docid] = {'raw': json.loads(searcher.doc(hit.docid).raw())['contents']}   
                 # Append the document embedding to the w2v data
-                w2v_train_data.append(preprocess_text(documents[hit.docid]['raw']))        
+                corpus.append(preprocess_text(documents[hit.docid]['raw']))        
 
             # Append the document id to the list of correlated documents
             queries[id]['docids_list'].append(hit.docid)
 
-    # Train the word2vec model
-    w2v_model = Word2Vec(sentences=w2v_train_data, vector_size=vector_size, window=max_tokens if max_tokens else 0, min_count=1, sg=0, epochs=10)
-
     # Return the three dictionaries
-    return queries, documents, w2v_model
+    return queries, documents, corpus
