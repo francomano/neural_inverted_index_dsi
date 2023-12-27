@@ -246,20 +246,7 @@ def build_dicts(max_topics=2, max_docs=3, max_tokens=None, vector_size=None):
             queries[id]['docids_list'].append(hit.docid)
 
     # Train the word2vec model
-    # TODO: manage the parameters
-    w2v_model = Word2Vec(sentences=w2v_train_data, vector_size=vector_size, window=7, min_count=1, sg=0, epochs=10)
-
-    # Compute embeddings for queries
-    for id in queries:
-        raw_query = queries[id]['raw'].lower()
-        queries[id]['emb'] = compute_embedding(raw_query, w2v_model)
-        queries[id]['first_L_emb'] = compute_embedding(raw_query, w2v_model, max_tokens)
-
-    # Compute embeddings for documents
-    for docid in documents:
-        raw_doc = documents[docid]['raw'].lower()
-        documents[docid]['emb'] = compute_embedding(raw_doc, w2v_model)
-        documents[docid]['first_L_emb'] = compute_embedding(raw_doc, w2v_model, max_tokens)
+    w2v_model = Word2Vec(sentences=w2v_train_data, vector_size=vector_size, window=max_tokens if max_tokens else 0, min_count=1, sg=0, epochs=10)
 
     # Return the three dictionaries
     return queries, documents, w2v_model

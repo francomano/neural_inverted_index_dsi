@@ -4,8 +4,6 @@ from torch.utils.data import Dataset
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
-
-
 import random
 
 
@@ -48,21 +46,31 @@ class QueryDocumentDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
+        # Get the query ID, document ID and relevance label
         query_id, doc_id, relevance = self.data[idx]
 
-
+        # If the return type is 'id', return the IDs
         if self.ret_type == 'id':
             return query_id, doc_id, relevance
         
+        # If the return type is 'raw', return the raw text
         elif self.ret_type == 'raw':
             return self.queries[query_id]['raw'], self.documents[doc_id]['raw'], relevance
         
+        # If the return type is 'emb', return the embeddings
         elif self.ret_type == 'emb':
-            return self.queries[query_id]['emb'], self.documents[doc_id]['emb'], relevance
+            return  torch.tensor(self.queries[query_id]['emb'], dtype=torch.float32), \
+                    torch.tensor(self.documents[doc_id]['emb'], dtype=torch.float32), \
+                    relevance
         
+        # If the return type is 'first_L_emb', return the first L tokens embeddings
         elif self.ret_type == 'first_L_emb':
-            return self.queries[query_id]['first_L_emb'], self.documents[doc_id]['first_L_emb'], relevance
+            return  torch.tensor(self.queries[query_id]['first_L_emb'], dtype=torch.float32), \
+                    torch.tensor(self.documents[doc_id]['first_L_emb'], dtype=torch.float32), \
+                    relevance
     
+
+
 
 
 
