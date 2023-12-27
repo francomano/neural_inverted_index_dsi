@@ -5,6 +5,71 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 
+
+import random
+
+
+class QueryDocumentDataset(Dataset):
+    def __init__(self, queries, documents, ret_type='id'):
+        """
+        Args:
+            queries (dict): Dictionary with query information.
+            documents (dict): Dictionary with document information.
+        """
+        self.queries = queries
+        self.documents = documents
+        self.ret_type = ret_type
+        self.data = self.build_dataset(queries, documents)
+
+    @staticmethod
+    def build_dataset(queries, documents):
+        # Initialize the dataset list
+        dataset = []
+        
+        # For each query
+        for query_id, query_data in queries.items():
+            # Get the list of correlated documents
+            docid_list = set(query_data['docids_list'])
+            # Add positive examples
+            for doc_id in docid_list:
+                dataset.append((query_id, doc_id, 1))
+
+            # Create a set of all document IDs, excluding those in docid_list
+            all_doc_ids = set(documents.keys()) - docid_list
+
+            # Add negative examples
+            for doc_id in set(random.sample(all_doc_ids, len(docid_list))):
+                dataset.append((query_id, doc_id, 0))
+
+        # Return the dataset
+        return dataset
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        query_id, doc_id, relevance = self.data[idx]
+
+
+        if self.ret_type == 'id':
+            return query_id, doc_id, relevance
+        
+        elif self.ret_type == 'raw':
+            return self.queries[query_id]['raw'], self.documents[doc_id]['raw'], relevance
+        
+        elif self.ret_type == 'emb':
+            return self.queries[query_id]['emb'], self.documents[doc_id]['emb'], relevance
+        
+        elif self.ret_type == 'first_L_emb':
+            return self.queries[query_id]['first_L_emb'], self.documents[doc_id]['first_L_emb'], relevance
+    
+
+
+
+
+
+
+
 # Corpus dataset class
 class corpus_dataset(Dataset):
     def __init__(self, data):
