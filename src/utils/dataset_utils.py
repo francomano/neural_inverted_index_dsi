@@ -206,7 +206,7 @@ def compute_embedding(sentence, word2vec_model, max_tokens=None):
 
 
 # Define the function that builds the dictionaries of queries and documents
-def build_dicts(max_topics=2, max_docs=3, max_tokens=None, vector_size=None):
+def build_dicts(max_topics=2, max_docs=3):
 
     topics = get_topics('msmarco-passage-dev-subset')
     searcher = SimpleSearcher.from_prebuilt_index('msmarco-passage')
