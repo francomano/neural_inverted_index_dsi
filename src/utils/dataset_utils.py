@@ -1,6 +1,7 @@
 import json
 import random
 import numpy as np
+from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from pyserini.search import get_topics, SimpleSearcher
 from gensim.models import Word2Vec
@@ -168,8 +169,16 @@ def read_dataset_from_csv(file_name):
 
 
 
+# Define the function to preprocess the text
+def preprocess_text(text):
+    # Define the stopwords to remove
+    stop_words = set(stopwords.words('english'))
+    # Tokenize the text, remove stopwords, and convert to lowercase
+    tokens = [token.lower() for token in word_tokenize(text) if token.lower() not in stop_words]
+    # Return the tokens
+    return tokens
 
-# TODO: manage max_tokens option
+
 # Define the function to get the embeddings
 def compute_embedding(sentence, word2vec_model, max_tokens=None):
     # Tokenize the sentence
@@ -219,7 +228,7 @@ def build_dicts(max_topics=2, max_docs=3, max_tokens=None, vector_size=None):
             'raw': topic_info['title'],     # Raw query
             'docids_list': list()}          # List of correlated documents
         # Append the query embedding to the w2v data
-        w2v_train_data.append(word_tokenize(queries[id]['raw'].lower()))
+        w2v_train_data.append(preprocess_text(queries[id]['raw']))
 
         # Perform the search
         hits = searcher.search(queries[id]['raw'], max_docs)
@@ -231,7 +240,7 @@ def build_dicts(max_topics=2, max_docs=3, max_tokens=None, vector_size=None):
                 # Retrieve document content as a string and update the documents dictionary
                 documents[hit.docid] = {'raw': json.loads(searcher.doc(hit.docid).raw())['contents']}   
                 # Append the document embedding to the w2v data
-                w2v_train_data.append(word_tokenize(documents[hit.docid]['raw'].lower()))        
+                w2v_train_data.append(preprocess_text(documents[hit.docid]['raw']))        
 
             # Append the document id to the list of correlated documents
             queries[id]['docids_list'].append(hit.docid)
