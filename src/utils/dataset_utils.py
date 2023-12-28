@@ -188,9 +188,6 @@ def compute_embedding(sentence, word2vec_model, max_tokens=None):
 
     # Optionally limit the number of tokens
     tokens = tokens[:max_tokens] if max_tokens else tokens
-
-    # Optionally limit the number of tokens
-    # tokens = tokens if not max_tokens else tokens[:max_tokens] + ['[PAD]'] * max(0, max_tokens - len(tokens))
     
     # Get the word embeddings for each token
     word_embeddings = [word2vec_model.wv[token.lower()] for token in tokens if token.lower() in word2vec_model.wv]

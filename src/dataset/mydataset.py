@@ -5,7 +5,8 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 import random
-
+from sklearn.preprocessing import LabelEncoder
+from neural_inverted_index_dsi.src.utils import dataset_utils
 
 class QueryDocumentDataset(Dataset):
     def __init__(self, queries, documents, ret_type='id'):
@@ -73,7 +74,6 @@ class QueryDocumentDataset(Dataset):
                     torch.tensor(relevance, dtype=torch.float32)
     
 
-
 class TripletQueryDocumentDataset(Dataset):
     def __init__(self, queries, documents, ret_type='id'):
         """
@@ -130,6 +130,54 @@ class TripletQueryDocumentDataset(Dataset):
                     torch.tensor(self.documents[negative]['first_L_emb'], dtype=torch.float32)
 
 
+class IndexingTrainDataset(Dataset):
+    def __init__(
+            self,
+            documents,
+            max_length: int,
+            tokenizer,
+            label_encoder: LabelEncoder,  # Pass the label encoder as a parameter
+            data = None
+    ):
+        self.documents = documents
+        self.max_length = max_length
+        self.tokenizer = tokenizer
+
+        # Use the provided label encoder
+        self.label_encoder = label_encoder
+        self.data = data if data else self.build_dataset()
+
+    def build_dataset(self):
+        # Initialize the dataset
+        dataset = []
+
+        # For each document (docid) in the documents dictionary
+        for docid in self.documents:
+            # Preprocess document content
+            preprocessed_text = " ".join(dataset_utils.preprocess_text(self.documents[docid]['raw']))
+            # Tokenize the document
+            input_ids = self.tokenizer(preprocessed_text, return_tensors="pt", truncation='only_first', max_length=self.max_length).input_ids[0]
+            # Encode docid label using the provided label encoder
+            label = self.label_encoder.transform([docid])[0]
+            # Tokenize the docid string
+            docid = torch.tensor(self.tokenizer(docid, truncation='only_first', max_length=self.max_length).input_ids)
+
+            # Pad the input_ids and docid tensors
+            input_ids = torch.cat([input_ids[:self.max_length], torch.zeros(max(0, self.max_length - len(input_ids)), dtype=input_ids.dtype)])
+            # Pad the input_ids and docid tensors
+            docid = torch.cat([docid[:self.max_length], torch.zeros(max(0, self.max_length - len(docid)), dtype=input_ids.dtype)])
+
+            # Append the input_ids, docid, and label to the dataset
+            dataset.append((input_ids, docid, label))
+
+        # Return the dataset
+        return dataset
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, item):
+        return self.data[item]
 
 
 

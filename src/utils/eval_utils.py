@@ -42,8 +42,7 @@ def precision_at_k_vfin(model, queries, documents, k, max_queries=None, ret_type
                 query_emb_padded = F.pad(query_emb.unsqueeze(0), (0, EMBEDDING_SIZE * MAX_TOKENS - query_emb.size(0))).squeeze(0)
                 doc_emb_padded = F.pad(doc_emb.unsqueeze(0), (0, EMBEDDING_SIZE * MAX_TOKENS - doc_emb.size(0))).squeeze(0)
                 score = model(query_emb_padded.unsqueeze(-1).permute(1,0).to(model.device), doc_emb_padded.unsqueeze(-1).permute(1,0).to(model.device)).item()
-                
-
+            
             elif model.__class__.__name__ == 'SiameseNetworkPL':
                 processed_query_emb = model(query_emb).unsqueeze(0)
                 processed_doc_emb = model(doc_emb).unsqueeze(0)
