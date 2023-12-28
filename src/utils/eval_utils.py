@@ -45,8 +45,8 @@ def precision_at_k_vfin(model, queries, documents, k, max_queries=None, ret_type
                 
 
             elif model.__class__.__name__ == 'SiameseNetworkPL':
-                processed_query_emb = model(torch.FloatTensor(query_emb)).unsqueeze(0)
-                processed_doc_emb = model(torch.FloatTensor(doc_emb)).unsqueeze(0)
+                processed_query_emb = model(query_emb).unsqueeze(0)
+                processed_doc_emb = model(doc_emb).unsqueeze(0)
                 score = F.cosine_similarity(processed_query_emb, processed_doc_emb).item()
 
             scores.append((doc_id, score, 1 if doc_id in relevant_docs else 0))

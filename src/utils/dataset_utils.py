@@ -185,32 +185,31 @@ def preprocess_text(text):
 def compute_embedding(sentence, word2vec_model, max_tokens=None):
     # Tokenize the sentence
     tokens = word_tokenize(sentence)
+
+    # Optionally limit the number of tokens
+    tokens = tokens[:max_tokens] if max_tokens else tokens
+
+    # Optionally limit the number of tokens
+    # tokens = tokens if not max_tokens else tokens[:max_tokens] + ['[PAD]'] * max(0, max_tokens - len(tokens))
     
     # Get the word embeddings for each token
     word_embeddings = [word2vec_model.wv[token.lower()] for token in tokens if token.lower() in word2vec_model.wv]
 
     # If no valid word embeddings found, return zero vector
     if not word_embeddings:
-        return np.zeros(word2vec_model.vector_size)
+        return np.zeros(word2vec_model.vector_size * max_tokens)
     
-    # If max_tokens is specified, pad and reshape the embeddings
+    # If max_tokens is specified, concatenate the embeddings
     if max_tokens:
-        # Pad the embeddings if the sentence is shorter than max_tokens
-        if len(word_embeddings) < max_tokens:
-            print("BEFORE SHAPE", word_embeddings)
-            padding = [np.zeros(word2vec_model.vector_size)] * (max_tokens - len(word_embeddings))
-            word_embeddings.extend(padding)
-            print("AFTER SHAPE", len(word_embeddings))
-        else:
-            word_embeddings = word_embeddings[:max_tokens]
-        
-        # Reshape the embeddings to have a consistent size
-        embedding_tensor = np.vstack(word_embeddings)
+        padding = [np.zeros(word2vec_model.vector_size) for _ in range(max_tokens - len(word_embeddings))]
+        word_embeddings.extend(padding)
+        avg_embedding = np.concatenate(word_embeddings, axis=0)
+    # Otherwise, calculate the average embedding
     else:
-        # Calculate the average embedding
-        embedding_tensor = np.mean(word_embeddings, axis=0)
+        avg_embedding = np.mean(word_embeddings, axis=0)
     
-    return embedding_tensor
+    # Return the embedding
+    return avg_embedding
 
 
 # Define the function that builds the dictionaries of queries and documents
