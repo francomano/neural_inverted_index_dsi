@@ -5,6 +5,66 @@ from sklearn.metrics import precision_score
 import torch
 import numpy as np
 
+EMBEDDING_SIZE = 120
+MAX_TOKENS = 7
+
+def precision_at_k_vfin(model, queries, documents, k, max_queries=None, ret_type='emb'):
+    """
+    Computes the precision at k for a given model and data.
+
+    :param model: PyTorch model used to compute similarity scores.
+    :param queries: Dictionary of queries with their embeddings and correlated doc IDs.
+    :param documents: Dictionary of document embeddings.
+    :param k: Number of top documents to consider for calculating precision.
+    :return: Dictionary of precision at k for each query.
+    """
+    precisions = {}
+
+    # Randomly sample the queries if max_queries is specified
+    if max_queries is not None and max_queries < len(queries):
+        sampled_query_ids = random.sample(list(queries.keys()), max_queries)
+        queries = {qid: queries[qid] for qid in sampled_query_ids}
+    
+    # Iterate through each query
+    for query_id, query_info in queries.items():
+        query_emb = torch.tensor(query_info[ret_type], dtype=torch.float32)
+        relevant_docs = query_info['docids_list']
+        
+        # Compute similarity scores with all documents
+        scores = []
+        for doc_id, doc_info in documents.items():
+            doc_emb = torch.tensor(doc_info[ret_type], dtype=torch.float32)
+            
+            if model.__class__.__name__ == 'SiameseNetwork':
+                score = model(query_emb.unsqueeze(-1).permute(1,0).to(model.device) , doc_emb.unsqueeze(-1).permute(1,0).to(model.device)).item()
+
+            elif model.__class__.__name__ == 'SiameseTransformer':
+                query_emb_padded = F.pad(query_emb.unsqueeze(0), (0, EMBEDDING_SIZE * MAX_TOKENS - query_emb.size(0))).squeeze(0)
+                doc_emb_padded = F.pad(doc_emb.unsqueeze(0), (0, EMBEDDING_SIZE * MAX_TOKENS - doc_emb.size(0))).squeeze(0)
+                score = model(query_emb_padded.unsqueeze(-1).permute(1,0).to(model.device), doc_emb_padded.unsqueeze(-1).permute(1,0).to(model.device)).item()
+                
+
+            elif model.__class__.__name__ == 'SiameseNetworkPL':
+                processed_query_emb = model(torch.FloatTensor(query_emb)).unsqueeze(0)
+                processed_doc_emb = model(torch.FloatTensor(doc_emb)).unsqueeze(0)
+                score = F.cosine_similarity(processed_query_emb, processed_doc_emb).item()
+
+            scores.append((doc_id, score, 1 if doc_id in relevant_docs else 0))
+
+        
+        # Rank documents based on scores
+        ranked_docs = sorted(scores, key=lambda x: x[1], reverse=True)
+        
+        # Calculate precision at k
+        relevant_count = sum(score for _, _, score in ranked_docs[:k])
+        precisions[query_id] = {'p@k': relevant_count / k, 'top_k_docs': ranked_docs[:k]}
+    
+    return precisions
+
+
+
+
+
 
 def evaluate_precision_at_k(corpus, tfidf_matrix, num_queries_to_sample, k):
     # Extract all queries from the corpus
