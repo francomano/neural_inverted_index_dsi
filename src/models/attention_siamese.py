@@ -80,11 +80,10 @@ class SiameseTransformer(pl.LightningModule):
 
 
     def training_step(self, batch, batch_idx):
-        query = batch['query']
-        document = batch['document']
-        relevance = batch['relevance']
+        # Get the query, document and relevance label from the batch
+        query, document, relevance = batch
 
-        similarity = self(query.float(), document.float()).squeeze()
+        similarity = self(query, document).squeeze()
 
         loss = self.criterion(similarity, relevance)
         self.train_step_outputs.append(loss)
@@ -96,12 +95,11 @@ class SiameseTransformer(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        query = batch['query']
-        document = batch['document']
-        relevance = batch['relevance']
+        # Get the query, document and relevance label from the batch
+        query, document, relevance = batch
 
         # Forward pass
-        similarity = self(query.float(), document.float()).squeeze()
+        similarity = self(query, document).squeeze()
         # Calculate binary cross-entropy loss
         loss = self.criterion(similarity, relevance)
         self.validation_step_outputs.append(loss)
@@ -158,12 +156,11 @@ class SiameseTransformerContrastive(pl.LightningModule):
 
 
     def training_step(self, batch, batch_idx):
-        query = batch['query']
-        document = batch['document']
-        relevance = batch['relevance']
+        # Get the query, document and relevance label from the batch
+        query, document, relevance = batch
 
         # Forward pass
-        query_output, document_output = self(query.float(), document.float())
+        query_output, document_output = self(query, document)
         # Compute loss
         loss = self.criterion(query_output.squeeze(), document_output.squeeze(), relevance)
         # Append loss to list
@@ -174,12 +171,11 @@ class SiameseTransformerContrastive(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        query = batch['query']
-        document = batch['document']
-        relevance = batch['relevance']
+        # Get the query, document and relevance label from the batch
+        query, document, relevance = batch
 
         # Forward pass
-        query_output, document_output = self(query.float(), document.float())
+        query_output, document_output = self(query, document)
         # Compute loss
         loss = self.criterion(query_output.squeeze(), document_output.squeeze(), relevance)
         # Append loss to list
