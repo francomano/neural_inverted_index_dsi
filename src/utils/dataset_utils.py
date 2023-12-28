@@ -1,10 +1,11 @@
+import csv
 import json
+import string
 import random
 import numpy as np
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from pyserini.search import get_topics, SimpleSearcher
-from gensim.models import Word2Vec
 
 def build_dataset(num_docs_per_query=10, num_topics=None):
     # Define the topics to retrieve
@@ -169,10 +170,11 @@ def read_dataset_from_csv(file_name):
 
 
 
+
 # Define the function to preprocess the text
 def preprocess_text(text):
     # Define the stopwords to remove
-    stop_words = set(stopwords.words('english'))
+    stop_words = set(stopwords.words('english')) + list(string.punctuation)
     # Tokenize the text, remove stopwords, and convert to lowercase
     tokens = [token.lower() for token in word_tokenize(text) if token.lower() not in stop_words]
     # Return the tokens

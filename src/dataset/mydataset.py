@@ -64,13 +64,13 @@ class QueryDocumentDataset(Dataset):
         elif self.ret_type == 'emb':
             return  torch.tensor(self.queries[query_id]['emb'], dtype=torch.float32), \
                     torch.tensor(self.documents[doc_id]['emb'], dtype=torch.float32), \
-                    relevance
+                    torch.tensor(relevance, dtype=torch.float32)
         
         # If the return type is 'first_L_emb', return the first L tokens embeddings
         elif self.ret_type == 'first_L_emb':
             return  torch.tensor(self.queries[query_id]['first_L_emb'], dtype=torch.float32), \
                     torch.tensor(self.documents[doc_id]['first_L_emb'], dtype=torch.float32), \
-                    relevance
+                    torch.tensor(relevance, dtype=torch.float32)
     
 
 

@@ -56,8 +56,6 @@ class SiameseNetwork(pl.LightningModule):
 
         return relevance_prob
 
-
-
     def calculate_accuracy(self, predictions, labels):
         predictions = (predictions > 0.5).float()  # Assuming binary classification
         correct = (predictions == labels).float()
@@ -65,12 +63,11 @@ class SiameseNetwork(pl.LightningModule):
         return accuracy.item()
 
     def training_step(self, batch, batch_idx):
-        query = batch['query']
-        document = batch['document']
-        relevance = batch['relevance']
+        # Get the query, document and relevance label from the batch
+        query, document, relevance = batch
 
         # Forward pass
-        similarity = self(query.float(), document.float()).squeeze()
+        similarity = self(query, document).squeeze()
         # Calculate binary cross-entropy loss
         loss = self.criterion(similarity, relevance)
         self.train_step_outputs.append(loss)
@@ -83,12 +80,11 @@ class SiameseNetwork(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        query = batch['query']
-        document = batch['document']
-        relevance = batch['relevance']
+        # Get the query, document and relevance label from the batch
+        query, document, relevance = batch
 
         # Forward pass
-        similarity = self(query.float(), document.float()).squeeze()
+        similarity = self(query, document).squeeze()
         # Calculate binary cross-entropy loss
         loss = self.criterion(similarity, relevance)
         self.validation_step_outputs.append(loss)
@@ -162,12 +158,11 @@ class SiameseNetworkContrastive(pl.LightningModule):
 
 
     def training_step(self, batch, batch_idx):
-        query = batch['query']
-        document = batch['document']
-        relevance = batch['relevance']
+        # Get the query, document and relevance label from the batch
+        query, document, relevance = batch
 
         # Forward pass
-        query_emb, doc_emb = self(query.float(), document.float())
+        query_emb, doc_emb = self(query, document)
         # Calculate binary cross-entropy loss
         loss = self.criterion(query_emb.squeeze(), doc_emb.squeeze(), relevance)
         # Add loss to list of losses
@@ -179,12 +174,11 @@ class SiameseNetworkContrastive(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        query = batch['query']
-        document = batch['document']
-        relevance = batch['relevance']
+        # Get the query, document and relevance label from the batch
+        query, document, relevance = batch
 
         # Forward pass
-        query_emb, doc_emb = self(query.float(), document.float())
+        query_emb, doc_emb = self(query, document)
         # Calculate binary cross-entropy loss
         loss = self.criterion(query_emb.squeeze(), doc_emb.squeeze(), relevance)
         # Add loss to list of losses
