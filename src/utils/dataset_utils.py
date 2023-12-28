@@ -174,7 +174,7 @@ def read_dataset_from_csv(file_name):
 # Define the function to preprocess the text
 def preprocess_text(text):
     # Define the stopwords to remove
-    stop_words = set(stopwords.words('english')) + list(string.punctuation)
+    stop_words = set(stopwords.words('english')).union(set(string.punctuation))
     # Tokenize the text, remove stopwords, and convert to lowercase
     tokens = [token.lower() for token in word_tokenize(text) if token.lower() not in stop_words]
     # Return the tokens
