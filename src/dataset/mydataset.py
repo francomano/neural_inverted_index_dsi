@@ -181,18 +181,18 @@ class IndexingTrainDataset(Dataset):
         dataset = []
 
         # For each document (docid) in the documents dictionary
-        for doc_id in self.documents:
+        for doc_id, doc_data in self.documents.items():
             # Preprocess document content
-            preprocessed_text = " ".join(dataset_utils.preprocess_text(self.documents[doc_id]['raw']))
+            preprocessed_text = " ".join(dataset_utils.preprocess_text(doc_data['raw']))
             # Tokenize the document
             input_ids = self.tokenizer(preprocessed_text, return_tensors="pt", truncation='only_first', max_length=self.max_length).input_ids[0]
+            # Pad the input_ids and docid tensors
+            input_ids = torch.cat([input_ids[:self.max_length], torch.zeros(max(0, self.max_length - len(input_ids)), dtype=input_ids.dtype)])
+
             # Encode docid label using the provided label encoder
             label = self.label_encoder.transform([doc_id])[0]
             # Tokenize the docid string
             docid = torch.tensor(self.tokenizer(doc_id, truncation='only_first', max_length=self.max_length).input_ids)
-
-            # Pad the input_ids and docid tensors
-            input_ids = torch.cat([input_ids[:self.max_length], torch.zeros(max(0, self.max_length - len(input_ids)), dtype=input_ids.dtype)])
             # Pad the input_ids and docid tensors
             docid = torch.cat([docid[:self.max_length], torch.zeros(max(0, self.max_length - len(docid)), dtype=input_ids.dtype)])
 
@@ -207,3 +207,62 @@ class IndexingTrainDataset(Dataset):
 
     def __getitem__(self, item):
         return self.data[item]
+    
+
+# (query, docid, label) dataset class
+class RetrievalDataset(Dataset):
+    def __init__(
+            self,
+            queries: dict,
+            max_length: int,
+            tokenizer: callable,
+            label_encoder: LabelEncoder,
+            data: list = None
+        ):
+        """
+        Args:
+            queries (dict): Dictionary with queries information.
+            max_length (int): Maximum length of the input sequence.
+            tokenizer (callable): Tokenizer.
+            label_encoder (LabelEncoder): Label encoder.
+            data (list): List of tuples (input_ids, docid, label).
+        """
+        self.queries = queries
+        self.max_length = max_length
+        self.tokenizer = tokenizer
+        self.label_encoder = label_encoder
+        self.dataset = self.build_dataset() if not data else data
+
+    # Build the dataset
+    def build_dataset(self):
+        # Initialize the dataset
+        dataset = []
+
+        # For each query in the queries dictionary
+        for query_id, query_data in self.queries.items():
+            # Preprocess document content
+            preprocessed_text = " ".join(dataset_utils.preprocess_text(query_data['raw']))
+            # Tokenize the document
+            input_ids = self.tokenizer(preprocessed_text, return_tensors="pt", truncation='only_first', max_length=self.max_length).input_ids[0]
+            # Pad the input_ids and docid tensors
+            input_ids = torch.cat([input_ids[:self.max_length], torch.zeros(max(0, self.max_length - len(input_ids)), dtype=input_ids.dtype)])
+
+            # For each document in the docids_list
+            for doc_id in query_data['docids_list']:
+                # Encode docid label using the provided label encoder
+                label = self.label_encoder.transform([doc_id])[0]
+                # Tokenize the docid string
+                docid = torch.tensor(self.tokenizer(doc_id, truncation='only_first', max_length=self.max_length).input_ids)
+                # Pad the input_ids and docid tensors
+                docid = torch.cat([docid[:self.max_length], torch.zeros(max(0, self.max_length - len(docid)), dtype=input_ids.dtype)])
+                # Append the input_ids, docid, and label to the dataset
+                dataset.append((input_ids, docid, label))
+
+        # Return the dataset
+        return dataset
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, item):
+        return self.dataset[item]
