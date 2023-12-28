@@ -171,7 +171,6 @@ class SiameseTransformerContrastive(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        # Get the query, document and relevance label from the batch
         query, document, relevance = batch
 
         # Forward pass

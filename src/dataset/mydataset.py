@@ -74,6 +74,67 @@ class QueryDocumentDataset(Dataset):
     
 
 
+class TripletQueryDocumentDataset(Dataset):
+    def __init__(self, queries, documents, ret_type='id'):
+        """
+        Args:
+            queries (dict): Dictionary with query information.
+            documents (dict): Dictionary with document information.
+        """
+        self.queries = queries
+        self.documents = documents
+        self.ret_type = ret_type
+        self.triplets = self.build_triplets(queries, documents)
+
+    @staticmethod
+    def build_triplets(queries, documents):
+        triplets = []
+        all_doc_ids = set(documents.keys())
+
+        for query_id, query_data in queries.items():
+            positive_docs = set(query_data['docids_list'])
+            negative_docs = random.sample(all_doc_ids - set(positive_docs), len(positive_docs))
+
+            for positive_doc, negative_doc in zip(positive_docs, negative_docs):
+                triplets.append((query_id, positive_doc, negative_doc))
+        
+        return triplets
+    
+    def set_ret_type(self, new_ret_type):
+        self.ret_type = new_ret_type
+
+    def __len__(self):
+        return len(self.triplets)
+
+    def __getitem__(self, idx):
+        anchor, positive, negative = self.triplets[idx]
+        
+        # If the return type is 'id', return the IDs
+        if self.ret_type == 'id':
+            return anchor, positive, negative
+        
+        # If the return type is 'raw', return the raw text
+        if self.ret_type == 'raw':
+            return self.queries[anchor]['raw'], self.documents[positive]['raw'], self.documents[negative]['raw']
+        
+        # If the return type is 'emb', return the embeddings
+        if self.ret_type == 'emb':
+            return  torch.tensor(self.queries[anchor]['emb'], dtype=torch.float32), \
+                    torch.tensor(self.documents[positive]['emb'], dtype=torch.float32), \
+                    torch.tensor(self.documents[negative]['emb'], dtype=torch.float32)
+        
+        # If the return type is 'first_L_emb', return the first L tokens embeddings
+        if self.ret_type == 'first_L_emb':
+            return  torch.tensor(self.queries[anchor]['first_L_emb'], dtype=torch.float32), \
+                    torch.tensor(self.documents[positive]['first_L_emb'], dtype=torch.float32), \
+                    torch.tensor(self.documents[negative]['first_L_emb'], dtype=torch.float32)
+
+
+
+
+
+
+
 
 
 
