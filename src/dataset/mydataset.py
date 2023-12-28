@@ -8,12 +8,20 @@ import random
 from sklearn.preprocessing import LabelEncoder
 from neural_inverted_index_dsi.src.utils import dataset_utils
 
+
+# (query, document, relevance) dataset class
 class QueryDocumentDataset(Dataset):
-    def __init__(self, queries, documents, ret_type='id'):
+    def __init__(
+            self, 
+            queries: dict, 
+            documents: dict, 
+            ret_type: str ='id'
+        ):
         """
         Args:
             queries (dict): Dictionary with query information.
             documents (dict): Dictionary with document information.
+            ret_type (str): Return type. Can be 'id', 'raw', 'emb', or 'first_L_emb'.
         """
         self.queries = queries
         self.documents = documents
@@ -24,6 +32,8 @@ class QueryDocumentDataset(Dataset):
     def build_dataset(queries, documents):
         # Initialize the dataset list
         dataset = []
+        # Create a set of all document IDs
+        all_doc_ids = set(documents.keys())
         
         # For each query
         for query_id, query_data in queries.items():
@@ -33,11 +43,8 @@ class QueryDocumentDataset(Dataset):
             for doc_id in docid_list:
                 dataset.append((query_id, doc_id, 1))
 
-            # Create a set of all document IDs, excluding those in docid_list
-            all_doc_ids = set(documents.keys()) - docid_list
-
-            # Add negative examples
-            for doc_id in set(random.sample(all_doc_ids, len(docid_list))):
+            # Add negative examples, randomly sampled from all_doc_ids excluding docid_list
+            for doc_id in set(random.sample(all_doc_ids - docid_list, len(docid_list))):
                 dataset.append((query_id, doc_id, 0))
 
         # Return the dataset
@@ -74,31 +81,44 @@ class QueryDocumentDataset(Dataset):
                     torch.tensor(relevance, dtype=torch.float32)
     
 
+# (query, document (positive), document (negative)) dataset class
 class TripletQueryDocumentDataset(Dataset):
-    def __init__(self, queries, documents, ret_type='id'):
+    def __init__(
+            self, 
+            queries: dict, 
+            documents: dict, 
+            ret_type: str ='id'
+        ):
         """
         Args:
             queries (dict): Dictionary with query information.
             documents (dict): Dictionary with document information.
+            ret_type (str): Return type. Can be 'id', 'raw', 'emb', or 'first_L_emb'.
         """
         self.queries = queries
         self.documents = documents
         self.ret_type = ret_type
-        self.triplets = self.build_triplets(queries, documents)
+        self.triplets = self.build_dataset(queries, documents)
 
     @staticmethod
-    def build_triplets(queries, documents):
-        triplets = []
+    def build_dataset(queries, documents):
+        # Initialize the dataset list
+        dataset = []
+        # Create a set of all document IDs
         all_doc_ids = set(documents.keys())
 
+        # For each query
         for query_id, query_data in queries.items():
+            # Get the list of correlated documents
             positive_docs = set(query_data['docids_list'])
+            # Get the list of negative documents, randomly sampled from all_doc_ids excluding positive_docs
             negative_docs = random.sample(all_doc_ids - set(positive_docs), len(positive_docs))
-
+            # Add positive and negative examples
             for positive_doc, negative_doc in zip(positive_docs, negative_docs):
-                triplets.append((query_id, positive_doc, negative_doc))
+                dataset.append((query_id, positive_doc, negative_doc))
         
-        return triplets
+        # Return the dataset
+        return dataset
     
     def set_ret_type(self, new_ret_type):
         self.ret_type = new_ret_type
@@ -107,6 +127,7 @@ class TripletQueryDocumentDataset(Dataset):
         return len(self.triplets)
 
     def __getitem__(self, idx):
+        # Get the query ID, positive document ID and negative document ID
         anchor, positive, negative = self.triplets[idx]
         
         # If the return type is 'id', return the IDs
@@ -130,37 +151,45 @@ class TripletQueryDocumentDataset(Dataset):
                     torch.tensor(self.documents[negative]['first_L_emb'], dtype=torch.float32)
 
 
+# (documend, docid, label) dataset class
 class IndexingTrainDataset(Dataset):
     def __init__(
             self,
-            documents,
+            documents: dict,
             max_length: int,
-            tokenizer,
+            tokenizer: callable,
             label_encoder: LabelEncoder,  # Pass the label encoder as a parameter
-            data = None
-    ):
+            data: list = None
+        ):
+        """
+        Args:
+            documents (dict): Dictionary with documents information.
+            max_length (int): Maximum length of the input sequence.
+            tokenizer (callable): Tokenizer.
+            label_encoder (LabelEncoder): Label encoder.
+            data (list): List of tuples (input_ids, docid, label).
+        """    
         self.documents = documents
         self.max_length = max_length
         self.tokenizer = tokenizer
-
-        # Use the provided label encoder
         self.label_encoder = label_encoder
         self.data = data if data else self.build_dataset()
 
+    # Build the dataset
     def build_dataset(self):
         # Initialize the dataset
         dataset = []
 
         # For each document (docid) in the documents dictionary
-        for docid in self.documents:
+        for doc_id in self.documents:
             # Preprocess document content
-            preprocessed_text = " ".join(dataset_utils.preprocess_text(self.documents[docid]['raw']))
+            preprocessed_text = " ".join(dataset_utils.preprocess_text(self.documents[doc_id]['raw']))
             # Tokenize the document
             input_ids = self.tokenizer(preprocessed_text, return_tensors="pt", truncation='only_first', max_length=self.max_length).input_ids[0]
             # Encode docid label using the provided label encoder
-            label = self.label_encoder.transform([docid])[0]
+            label = self.label_encoder.transform([doc_id])[0]
             # Tokenize the docid string
-            docid = torch.tensor(self.tokenizer(docid, truncation='only_first', max_length=self.max_length).input_ids)
+            docid = torch.tensor(self.tokenizer(doc_id, truncation='only_first', max_length=self.max_length).input_ids)
 
             # Pad the input_ids and docid tensors
             input_ids = torch.cat([input_ids[:self.max_length], torch.zeros(max(0, self.max_length - len(input_ids)), dtype=input_ids.dtype)])
@@ -178,89 +207,3 @@ class IndexingTrainDataset(Dataset):
 
     def __getitem__(self, item):
         return self.data[item]
-
-
-
-
-
-
-
-
-
-
-
-
-# Corpus dataset class
-class corpus_dataset(Dataset):
-    def __init__(self, data):
-        self.data = data  #una lista di dizionari
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, index):
-        sample = self.data[index]
-        # Esempio: restituisci i tensori per la query, il documento e l'etichetta di rilevanza
-        query_tensor = self.tokenize_text(sample['query'])
-        document_tensor = self.tokenize_text(sample['document'])
-        relevance_label = torch.tensor(sample['relevance'], dtype=torch.float32)
-        docid = torch.tensor(float(sample['document_id']), dtype=torch.float32)
-
-        return {'query': query_tensor, 'document': document_tensor, 'relevance': relevance_label, 'docid':docid}
-
-    def tokenize_text(self, text):
-        # Tokenize the text
-        tokens = word_tokenize(text)
-
-        # Remove stop words
-        stop_words = set(stopwords.words('english'))
-
-        tokens = [word for word in tokens if word.lower() not in stop_words and word.lower() not in string.punctuation ]
-
-        # Lemmatize the words
-        lemmatizer = WordNetLemmatizer()
-        tokens = [lemmatizer.lemmatize(word) for word in tokens]
-
-        return tokens
-    
-# Embedded dataset class
-class embedded_dataset(Dataset):
-    def __init__(self, data):
-        self.data = data  #una lista di 4-ple
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, index):
-        query_embedding, document_embedding, relevance, docid = self.data[index]
-
-        return {'query': query_embedding, 'document': document_embedding, 'relevance': relevance, 'docid':docid}
-    
-
-class embedded_dataset_sequence(Dataset):
-    def __init__(self, data):
-        self.data = data  #una lista di 4-ple
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, index):
-        query_embedding, document_embedding, relevance, docid = self.data[index]
-
-        return {'query': query_embedding, 'document': document_embedding, 'relevance': relevance, 'docid':docid}
-    
-
-class SiameseDataset(Dataset):
-    def __init__(self, triplets):
-        self.triplets = triplets
-
-    def __len__(self):
-        return len(self.triplets)
-
-    def __getitem__(self, idx):
-        anchor_embedding = torch.FloatTensor(self.triplets[idx][0]['query_embedding'])
-        positive_embedding = torch.FloatTensor(self.triplets[idx][1]['document_embedding'])
-        negative_embedding = torch.FloatTensor(self.triplets[idx][2]['document_embedding'])
-
-
-        return anchor_embedding, positive_embedding, negative_embedding

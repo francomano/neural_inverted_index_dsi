@@ -62,12 +62,12 @@ class CustomTransformer(nn.Module):
 class SiameseTransformer(pl.LightningModule):
     def __init__(self, embedding_size):
         super(SiameseTransformer, self).__init__()
+        self.embedding_size = embedding_size 
+
         self.validation_step_outputs = []
         self.train_step_outputs = []
         self.validation_accuracy_outputs = []
-
         self.transformer = CustomTransformer(embedding_size)
-
         self.criterion = F.binary_cross_entropy_with_logits
 
     def forward(self, query_embeddings, document_embeddings, query_mask=None):
