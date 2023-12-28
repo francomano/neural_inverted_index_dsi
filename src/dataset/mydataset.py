@@ -178,7 +178,7 @@ class IndexingTrainDataset(Dataset):
     # Build the dataset
     def build_dataset(self):
         # Initialize the dataset
-        dataset = []
+        data = []
 
         # For each document (docid) in the documents dictionary
         for doc_id, doc_data in self.documents.items():
@@ -197,10 +197,10 @@ class IndexingTrainDataset(Dataset):
             docid = torch.cat([docid[:self.max_length], torch.zeros(max(0, self.max_length - len(docid)), dtype=input_ids.dtype)])
 
             # Append the input_ids, docid, and label to the dataset
-            dataset.append((input_ids, docid, label))
+            data.append((input_ids, docid, label))
 
         # Return the dataset
-        return dataset
+        return data
 
     def __len__(self):
         return len(self.data)
