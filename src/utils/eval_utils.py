@@ -5,9 +5,6 @@ from sklearn.metrics import precision_score
 import torch
 import numpy as np
 
-EMBEDDING_SIZE = 120
-MAX_TOKENS = 7
-
 def precision_at_k(model, queries, documents, k, max_queries=None, ret_type='emb'):
     """
     Computes the precision at k for a given model and data.
@@ -65,7 +62,7 @@ def precision_at_k(model, queries, documents, k, max_queries=None, ret_type='emb
         
         # Calculate precision at k by counting the number of relevant documents in the top k documents
         relevant_count = sum(score for _, _, score in ranked_docs[:k])
-        
+
         # Store the precision at k and the top k documents for the query
         precisions[query_id] = {'p@k': relevant_count / k, 'top_k_docs': ranked_docs[:k]}
     
