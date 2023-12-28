@@ -6,7 +6,7 @@ import pytorch_lightning as pl
 
 
 class Seq2SeqTransformer(pl.LightningModule):
-    def __init__(self, token_vocab_size, docid_vocab_size, d_model=8, nhead=4, num_layers=1, conv_channels=8, kernel_size=3):
+    def __init__(self, token_vocab_size, docid_vocab_size, d_model=256, nhead=4, num_layers=3, conv_channels=32, kernel_size=3):
         super(Seq2SeqTransformer, self).__init__()
 
         self.validation_step_outputs = []
@@ -22,7 +22,6 @@ class Seq2SeqTransformer(pl.LightningModule):
             nhead=nhead,
             num_encoder_layers=num_layers,
             num_decoder_layers=num_layers,
-            dim_feedforward=128,
             batch_first=False
         )
 

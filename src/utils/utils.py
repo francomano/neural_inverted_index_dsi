@@ -20,6 +20,16 @@ def train_model(dataset, model, max_epochs, batch_size=1024, split_ratio=0.8, **
     trainer = pl.Trainer(max_epochs=max_epochs)
     trainer.fit(model, train_dataloader, eval_dataloader)
 
+def learn_docids(dataset, model, max_epochs, batch_size=1024, **dataloader_kwargs):
+
+
+    # Creating dataloaders
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, **dataloader_kwargs)
+
+    # Training the model
+    trainer = pl.Trainer(max_epochs=max_epochs)
+    trainer.fit(model, dataloader)
+
 
 
 
