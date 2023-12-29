@@ -3,10 +3,30 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torch.nn as nn
 import pytorch_lightning as pl
+import math
 
+
+class PositionalEncoding(nn.Module):
+    def __init__(self, d_model):
+        super(PositionalEncoding, self).__init__()
+
+    def forward(self, x):
+        seq_len, batch_size, feature_dim = x.size()
+
+        position = torch.arange(0, seq_len).unsqueeze(1).float().to(x.device)
+        div_term = torch.exp(torch.arange(0, feature_dim, 2).float() * -(math.log(10000.0) / feature_dim)).to(x.device)
+        pe = torch.zeros(seq_len, 1, feature_dim).to(x.device)
+        pe[:, 0, 0::2] = torch.sin(position * div_term[:feature_dim//2])
+        pe[:, 0, 1::2] = torch.cos(position * div_term[:feature_dim//2])
+        pe = pe.unsqueeze(0)
+
+        # Add positional encoding
+        x_with_pe = (x + pe).squeeze(0)
+
+        return x_with_pe
 
 class Seq2SeqTransformer(pl.LightningModule):
-    def __init__(self, token_vocab_size, docid_vocab_size, d_model=256, nhead=4, num_layers=3, conv_channels=32, kernel_size=3):
+    def __init__(self, token_vocab_size, docid_vocab_size, d_model=256, nhead=4, num_layers=3, conv_channels=32, kernel_size=3, max_len=512):
         super(Seq2SeqTransformer, self).__init__()
 
         self.validation_step_outputs = []
@@ -15,6 +35,7 @@ class Seq2SeqTransformer(pl.LightningModule):
 
         # Embedding layer
         self.embedding = nn.Embedding(token_vocab_size, d_model)
+        self.positional_encoding = PositionalEncoding(d_model)
 
         # Transformer layers
         self.transformer = nn.Transformer(
@@ -35,6 +56,10 @@ class Seq2SeqTransformer(pl.LightningModule):
         # Embedding
         input_embedding = self.embedding(input_ids)
         target_embedding = self.embedding(target_ids)
+
+        # Add positional encoding
+        input_embedding = self.positional_encoding(input_embedding)
+        target_embedding = self.positional_encoding(target_embedding)
 
         # Transformer
         output_transformer = self.transformer(input_embedding, target_embedding)
