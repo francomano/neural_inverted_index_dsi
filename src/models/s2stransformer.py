@@ -61,8 +61,19 @@ class Seq2SeqTransformer(pl.LightningModule):
         input_embedding = self.positional_encoding(input_embedding)
         target_embedding = self.positional_encoding(target_embedding)
 
-        # Transformer
-        output_transformer = self.transformer(input_embedding, target_embedding)
+
+        input_mask = (input_ids != 0).unsqueeze(1).float()  # Mask for input sequence
+        target_mask = (target_ids != 0).unsqueeze(1).float()  # Mask for target sequence
+        # Pad the attention masks to have square dimensions
+        input_mask = F.pad(input_mask, (0, target_ids.size(1)))
+        target_mask = F.pad(target_mask, (0, input_ids.size(1)))
+        # Concatenate the attention masks
+        attn_mask = torch.cat([input_mask, target_mask], dim=2)
+        attn_mask = attn_mask.expand(attn_mask.shape[0],attn_mask.shape[0],attn_mask.shape[2])
+        attn_mask = attn_mask.permute(2,0,1)
+
+        # Transformer with concatenated attention mask
+        output_transformer = self.transformer(input_embedding, target_embedding, attn_mask)
 
         # Convolutional layer
         output_conv = self.conv1d(output_transformer.permute(1, 2, 0))
