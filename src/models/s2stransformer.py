@@ -33,6 +33,10 @@ class Seq2SeqTransformer(pl.LightningModule):
         self.train_step_outputs = []
         self.validation_accuracy_outputs = []
 
+        self.src_padding_mask = None
+        self.tgt_padding_mask = None
+        self.tgt_causal_mask = None
+
         # Embedding layer
         self.embedding = nn.Embedding(token_vocab_size, d_model)
         self.positional_encoding = PositionalEncoding(d_model)
@@ -61,20 +65,21 @@ class Seq2SeqTransformer(pl.LightningModule):
         input_embedding = self.positional_encoding(input_embedding)
         target_embedding = self.positional_encoding(target_embedding)
 
+        # Sposta le maschere sul dispositivo corrente (può essere CPU o GPU)
+        self.src_padding_mask = (input_ids == 0).transpose(0, 1).to(input_ids.device)
+        self.tgt_padding_mask = (target_ids == 0).transpose(0, 1).to(target_ids.device)
 
-        input_mask = (input_ids != 0).unsqueeze(1).float()  # Mask for input sequence
-        target_mask = (target_ids != 0).unsqueeze(1).float()  # Mask for target sequence
-        # Pad the attention masks to have square dimensions
-        input_mask = F.pad(input_mask, (0, target_ids.size(1)))
-        target_mask = F.pad(target_mask, (0, input_ids.size(1)))
-        # Concatenate the attention masks
-        attn_mask = torch.cat([input_mask, target_mask], dim=2)
-        attn_mask = attn_mask.expand(attn_mask.shape[0],attn_mask.shape[0],attn_mask.shape[2])
-        attn_mask = attn_mask.permute(2,0,1)
 
-        # Transformer with concatenated attention mask
-        output_transformer = self.transformer(input_embedding, target_embedding, attn_mask)
+        # Calcola la maschera causale
+        tgt_seq_len = target_embedding.size(0)
+        self.tgt_causal_mask = torch.triu(torch.ones(tgt_seq_len, tgt_seq_len), diagonal=1).to(torch.bool).to(target_embedding.device)
 
+        # Transformer with maschere
+        output_transformer = self.transformer(input_embedding, target_embedding,
+                                              src_key_padding_mask=self.src_padding_mask,
+                                              tgt_key_padding_mask=self.tgt_padding_mask,
+                                              memory_key_padding_mask=self.src_padding_mask,
+                                              tgt_mask=self.tgt_causal_mask)
         # Convolutional layer
         output_conv = self.conv1d(output_transformer.permute(1, 2, 0))
         output_conv = F.relu(output_conv)
