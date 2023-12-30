@@ -26,11 +26,12 @@ class PositionalEncoding(nn.Module):
         return x_with_pe
 
 class Seq2SeqTransformer(pl.LightningModule):
-    def __init__(self, token_vocab_size, d_model=256, nhead=4, num_layers=3, max_len=512):
+    def __init__(self, token_vocab_size, d_model=256, nhead=4, num_layers=3):
         super(Seq2SeqTransformer, self).__init__()
 
         self.validation_step_outputs = []
         self.train_step_outputs = []
+        self.train_accuracy_outputs = []
         self.validation_accuracy_outputs = []
 
         self.src_padding_mask = None
@@ -103,10 +104,21 @@ class Seq2SeqTransformer(pl.LightningModule):
         # Compute loss
         loss = F.cross_entropy(output_reshaped, target_reshaped)
 
+        # Compute accuracy
+        # Take the argmax of the output to get the most likely token
+        predictions = torch.argmax(output_reshaped, dim=1)
+        correct_count = (predictions == target_reshaped).sum().item()
+        total_count = target_reshaped.size(0)
+        accuracy = correct_count / total_count
+        accuracy_tensor = torch.tensor(accuracy)
+
         # Log training loss
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)
         self.train_step_outputs.append(loss)
-        self.log('train_loss', loss, on_epoch=True, prog_bar=True)
+        
+        #Log accuracy
+        self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
+        self.train_accuracy_outputs.append(accuracy_tensor)
 
         return loss
 
@@ -128,23 +140,48 @@ class Seq2SeqTransformer(pl.LightningModule):
         # Compute loss
         loss = F.cross_entropy(output_reshaped, target_reshaped)
 
+        # Compute accuracy
+        # Take the argmax of the output to get the most likely token
+        predictions = torch.argmax(output_reshaped, dim=1)
+        correct_count = (predictions == target_reshaped).sum().item()
+        total_count = target_reshaped.size(0)
+        accuracy = correct_count / total_count
+        accuracy_tensor = torch.tensor(accuracy)
+
         # Log validation loss
         self.log('val_loss', loss, on_epoch=True, prog_bar=True)
         self.validation_step_outputs.append(loss)
 
+        #Log accuracy
+        self.log('val_accuracy', accuracy, on_epoch=True, prog_bar=True)
+        self.validation_accuracy_outputs.append(accuracy_tensor)
+
         return loss
 
     def on_validation_epoch_end(self):
+
         if not len(self.train_step_outputs) == 0:
             epoch_average_train = torch.stack(self.train_step_outputs).mean()
             self.log("train_epoch_average", epoch_average_train)
             print("train_loss_avg: ", epoch_average_train)
             self.train_step_outputs.clear()
+
+            epoch_train_acc = torch.stack(self.train_accuracy_outputs).mean()
+            self.log("train_accuracy", epoch_train_acc)
+            print("train_acc_avg: ", epoch_train_acc)
+            self.train_accuracy_outputs.clear()
+
         if not len(self.validation_step_outputs) == 0:
             epoch_average = torch.stack(self.validation_step_outputs).mean()
             self.log("validation_epoch_average", epoch_average)
             print("val_loss_avg: ", epoch_average)
             self.validation_step_outputs.clear()
+
+            epoch_val_acc = torch.stack(self.validation_accuracy_outputs).mean()
+            self.log("validation_accuracy", epoch_val_acc)
+            print("val_acc_avg: ", epoch_val_acc)
+            self.validation_accuracy_outputs.clear()
+
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=5e-3)
