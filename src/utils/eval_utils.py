@@ -2,6 +2,7 @@ import difflib
 import random
 import torch.nn.functional as F
 from sklearn.metrics import precision_score
+from sklearn.metrics.pairwise import cosine_similarity
 import torch
 import numpy as np
 
@@ -70,40 +71,27 @@ def precision_at_k(model, queries, documents, k, max_queries=None, ret_type='emb
     return precisions
 
 
-### TODO: to be modified for TF-IDF
-def evaluate_precision_at_k(corpus, tfidf_matrix, num_queries_to_sample, k):
-    # Extract all queries from the corpus
-    all_queries = [sample['query'] for sample in corpus.data]
+# Precision at K for TF-IDF
+def precision_at_k_tfidf(queries, doc_ids, tfidf_matrix, vectorizer, k, num_queries=5):
+    # Initialize the results dictionary
+    results = {}
 
-    # Sample queries
-    sampled_queries = random.sample(all_queries, num_queries_to_sample)
+    # Get num_queries random queries
+    query_ids = random.sample(list(queries.keys()), num_queries)
 
-    # Initialize list for storing precision at k values
-    precision_at_k = []
+    for query_id in query_ids:
+        # Get the relevant documents for the query
+        relevant_docs = queries[query_id]["docids_list"]
+        # Compute the TF-IDF matrix
+        query_tfidf = vectorizer.transform([queries[query_id]['raw'].lower()])
+        # Compute cosine similarities
+        cosine_similarities = cosine_similarity(query_tfidf, tfidf_matrix).flatten()
+        # Get the top K retrieved documents
+        top_k_retrieved = [doc_ids[i] for i in np.argsort(cosine_similarities, axis=0)[::-1]][:k]
+        # Count how many of the top K retrieved documents are relevant
+        relevant_count = sum(doc_id in relevant_docs for doc_id in top_k_retrieved)
+        # Return the precision at K
+        results[query_id] = relevant_count / k
 
-    for i, query_sample in enumerate(sampled_queries):
-        # Find the closest matching query in the dataset
-        closest_match = difflib.get_close_matches(query_sample.lower().strip(),
-                                                  [sample['query'].lower().strip() for sample in corpus.data])
-
-        if not closest_match:
-            print(f"No close match found for query '{query_sample}'.")
-            continue
-
-        query_index = [sample['query'].lower().strip() for sample in corpus.data].index(closest_match[0])
-
-        relevant_documents = [j for j, relevance in enumerate(corpus.data) if relevance['relevance'] == 1]
-
-        # Sort documents by Tf-Idf similarity and take the top k
-        tfidf_row = np.asarray(tfidf_matrix[query_index].todense()).ravel()
-        top_k_documents = tfidf_row.argsort()[-k:][::-1]
-
-        # Calculate precision at k
-        precision = precision_score(y_true=[1 if j in relevant_documents else 0 for j in range(len(corpus.data))],
-                                    y_pred=[1 if j in top_k_documents else 0 for j in range(len(corpus.data))])
-        precision_at_k.append(precision)
-
-    # Return precision at k for each sampled query
-    return precision_at_k
-
+    return results
 
