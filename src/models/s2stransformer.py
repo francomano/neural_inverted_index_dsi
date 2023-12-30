@@ -143,5 +143,5 @@ class Seq2SeqTransformer(pl.LightningModule):
 
 
     def configure_optimizers(self):
-        optimizer = optim.AdamW(self.parameters(), lr=5e-4)
+        optimizer = optim.AdamW(self.parameters(), lr=5e-2)
         return optimizer
