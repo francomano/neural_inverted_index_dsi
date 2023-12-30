@@ -134,9 +134,6 @@ class Seq2SeqTransformer(pl.LightningModule):
 
         return loss
 
-
-
-
     def on_validation_epoch_end(self):
         if not len(self.train_step_outputs) == 0:
             epoch_average_train = torch.stack(self.train_step_outputs).mean()
@@ -148,12 +145,6 @@ class Seq2SeqTransformer(pl.LightningModule):
             self.log("validation_epoch_average", epoch_average)
             print("val_loss_avg: ", epoch_average)
             self.validation_step_outputs.clear()
-
-            self.validation_step_outputs.clear()
-            accuracy_avg = sum(self.validation_accuracy_outputs) / len(self.validation_accuracy_outputs)
-            print("accuracy: ", accuracy_avg)
-            self.validation_accuracy_outputs.clear()
-
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=5e-3)
