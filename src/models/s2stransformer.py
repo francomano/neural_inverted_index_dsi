@@ -26,7 +26,7 @@ class PositionalEncoding(nn.Module):
         return x_with_pe
 
 class Seq2SeqTransformer(pl.LightningModule):
-    def __init__(self, token_vocab_size, d_model=256, nhead=4, num_layers=3):
+    def __init__(self, token_vocab_size, d_model=256, nhead=4, num_layers=2):
         super(Seq2SeqTransformer, self).__init__()
 
         self.validation_step_outputs = []
@@ -98,19 +98,23 @@ class Seq2SeqTransformer(pl.LightningModule):
         output = self(input_ids, target_ids)
 
         # Adjust the reshaping to keep the sequence-first format
-        output_reshaped = output[:-1].reshape(-1, output.size(-1))
-        target_reshaped = target_ids[1:].reshape(-1)
+        output_reshaped = output.reshape(-1, output.size(-1))
+        target_reshaped = target_ids.reshape(-1)
 
         # Compute loss
-        loss = F.cross_entropy(output_reshaped, target_reshaped)
+        loss = F.cross_entropy(output_reshaped, target_reshaped, ignore_index=0)
 
         # Compute accuracy
         # Take the argmax of the output to get the most likely token
         predictions = torch.argmax(output_reshaped, dim=1)
-        correct_count = (predictions == target_reshaped).sum().item()
-        total_count = target_reshaped.size(0)
-        accuracy = correct_count / total_count
+        # Compute accuracy with masking for padding
+        non_padding_mask = (target_reshaped != 0)
+        correct_count = ((predictions == target_reshaped) & non_padding_mask).sum().item()
+        total_count = non_padding_mask.sum().item()
+        # Avoid division by zero
+        accuracy = correct_count / total_count if total_count > 0 else 0.0
         accuracy_tensor = torch.tensor(accuracy)
+
 
         # Log training loss
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)
@@ -134,18 +138,21 @@ class Seq2SeqTransformer(pl.LightningModule):
         output = self(input_ids, target_ids)
 
         # Adjust the reshaping to keep the sequence-first format
-        output_reshaped = output[:-1].reshape(-1, output.size(-1))
-        target_reshaped = target_ids[1:].reshape(-1)
+        output_reshaped = output.reshape(-1, output.size(-1))
+        target_reshaped = target_ids.reshape(-1)
 
         # Compute loss
-        loss = F.cross_entropy(output_reshaped, target_reshaped)
+        loss = F.cross_entropy(output_reshaped, target_reshaped, ignore_index=0)
 
         # Compute accuracy
         # Take the argmax of the output to get the most likely token
         predictions = torch.argmax(output_reshaped, dim=1)
-        correct_count = (predictions == target_reshaped).sum().item()
-        total_count = target_reshaped.size(0)
-        accuracy = correct_count / total_count
+        # Compute accuracy with masking for padding
+        non_padding_mask = (target_reshaped != 0)
+        correct_count = ((predictions == target_reshaped) & non_padding_mask).sum().item()
+        total_count = non_padding_mask.sum().item()
+        # Avoid division by zero
+        accuracy = correct_count / total_count if total_count > 0 else 0.0
         accuracy_tensor = torch.tensor(accuracy)
 
         # Log validation loss
