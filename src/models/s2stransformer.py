@@ -48,7 +48,7 @@ class Seq2SeqTransformer(pl.LightningModule):
             nhead=nhead,
             num_encoder_layers=num_layers,
             num_decoder_layers=num_layers,
-            batch_first=False
+            batch_first=False,
             dropout=0.1
         )
 
