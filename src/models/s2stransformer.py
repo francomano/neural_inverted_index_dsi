@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim.lr_scheduler import LambdaLR
 import math
+import pytorch_lightning as pl
 
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model):
