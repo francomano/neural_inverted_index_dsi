@@ -54,7 +54,7 @@ class Seq2SeqTransformer(pl.LightningModule):
         # Linear layer with layer normalization
         self.fc = nn.Linear(d_model, token_vocab_size)
         self.layer_norm = nn.LayerNorm(token_vocab_size)
-
+    
     def forward(self, input_ids, target_ids):
         # Embedding
         input_embedding = self.embedding(input_ids)
@@ -90,148 +90,51 @@ class Seq2SeqTransformer(pl.LightningModule):
 
         return output
 
-
     def training_step(self, batch, batch_idx):
         input_ids, target_ids, _ = batch
 
-        target_ids = target_ids.permute(1, 0)
+        # Ensure that input_ids and target_ids have the correct dimensions (sequence length, batch size)
         input_ids = input_ids.permute(1, 0)
-        
+        target_ids = target_ids.permute(1, 0)
+
         # Pass the sequence-first tensors to the transformer
         output = self(input_ids, target_ids)
 
-        # reshape for loss computation to (seq_len*batch_size, vocab_size)
-        output_reshaped = output.reshape(-1, output.size(-1))
-        target_reshaped = target_ids.reshape(-1)
+        # Initialize decoder input with the padding token (assuming padding_token_id is defined)
+        decoder_input = torch.tensor([[0]] * target_ids.size(1)).to(target_ids.device)
 
-        # Compute loss
-        loss = F.cross_entropy(output_reshaped, target_reshaped, ignore_index=0)
+        # Initialize the loss and correct count
+        loss = 0.0
+        correct_count = 0
 
-        # Compute accuracy
-        # Take the argmax of the output to get the most likely token
-        predictions = torch.argmax(output_reshaped, dim=1)
-        # Compute accuracy with masking for padding
-        non_padding_mask = (target_reshaped != 0)
-        correct_count = ((predictions == target_reshaped) & non_padding_mask).sum().item()
-        total_count = non_padding_mask.sum().item()
-        # Avoid division by zero
+        # Loop over each time step in the target sequence
+        for t in range(target_ids.size(0)):
+            # Use teacher forcing: replace the decoder input with the true target up to the current time step
+            decoder_input = target_ids[t].unsqueeze(0)
+            print(decoder_input, t)
+
+            # Generate predictions for the current time step
+            output_step = self(input_ids, decoder_input)
+
+            # Compute the loss for the current time step
+            loss += F.cross_entropy(output_step.squeeze(0), target_ids[t], ignore_index=0)
+
+            # Compute accuracy for the current time step
+            predictions = torch.argmax(output_step.squeeze(0), dim=-1)
+            non_padding_mask = (target_ids[t] != 0)  # Exclude padding from accuracy calculation
+            correct_count += ((predictions == target_ids[t]) & non_padding_mask).sum().item()
+
+        # Average the loss over all time steps
+        loss /= target_ids.size(0)
+
+        # Compute accuracy over all time steps
+        total_count = non_padding_mask.sum().item() * target_ids.size(0)
         accuracy = correct_count / total_count if total_count > 0 else 0.0
-        accuracy_tensor = torch.tensor(accuracy)
 
-
-        # Log training loss
+        # Log training loss and accuracy
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)
-        self.train_step_outputs.append(loss)
-        
-        #Log accuracy
         self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
-        self.train_accuracy_outputs.append(accuracy_tensor)
-
-        return loss
-
-
-    def validation_step(self, batch, batch_idx):
-        input_ids, target_ids, _ = batch
-
-        target_ids = target_ids.permute(1, 0)
-        input_ids = input_ids.permute(1, 0)
-        
-        # Pass the sequence-first tensors to the transformer
-        # During validation, the model predicts the output without teacher forcing
-        output = self(input_ids, target_ids)
-
-        # Adjust the reshaping to keep the sequence-first format
-        output_reshaped = output.reshape(-1, output.size(-1))
-        target_reshaped = target_ids.reshape(-1)
-
-        # Compute loss
-        loss = F.cross_entropy(output_reshaped, target_reshaped, ignore_index=0)
-
-        # Compute accuracy
-        # Take the argmax of the output to get the most likely token
-        predictions = torch.argmax(output_reshaped, dim=1)
-        # Compute accuracy with masking for padding
-        non_padding_mask = (target_reshaped != 0)
-        correct_count = ((predictions == target_reshaped) & non_padding_mask).sum().item()
-        total_count = non_padding_mask.sum().item()
-        # Avoid division by zero
-        accuracy = correct_count / total_count if total_count > 0 else 0.0
-        accuracy_tensor = torch.tensor(accuracy)
-
-        # Log validation loss
-        self.log('val_loss', loss, on_epoch=True, prog_bar=True)
-        self.validation_step_outputs.append(loss)
-
-        #Log accuracy
-        self.log('val_accuracy', accuracy, on_epoch=True, prog_bar=True)
-        self.validation_accuracy_outputs.append(accuracy_tensor)
-
-        return loss
-
-    def on_validation_epoch_end(self):
-
-        if not len(self.train_step_outputs) == 0:
-            epoch_average_train = torch.stack(self.train_step_outputs).mean()
-            self.log("train_epoch_average", epoch_average_train)
-            print("train_loss_avg: ", epoch_average_train)
-            self.train_step_outputs.clear()
-
-            epoch_train_acc = torch.stack(self.train_accuracy_outputs).mean()
-            self.log("train_accuracy", epoch_train_acc)
-            print("train_acc_avg: ", epoch_train_acc)
-            self.train_accuracy_outputs.clear()
-
-        if not len(self.validation_step_outputs) == 0:
-            epoch_average = torch.stack(self.validation_step_outputs).mean()
-            self.log("validation_epoch_average", epoch_average)
-            print("val_loss_avg: ", epoch_average)
-            self.validation_step_outputs.clear()
-
-            epoch_val_acc = torch.stack(self.validation_accuracy_outputs).mean()
-            self.log("validation_accuracy", epoch_val_acc)
-            print("val_acc_avg: ", epoch_val_acc)
-            self.validation_accuracy_outputs.clear()
-
-
-    def configure_optimizers(self):
-        optimizer = optim.AdamW(self.parameters(), lr=5e-3)
-        return optimizer
-
-    def training_step(self, batch, batch_idx):
-        input_ids, target_ids, _ = batch
-
-        target_ids = target_ids.permute(1, 0)
-        input_ids = input_ids.permute(1, 0)
-        
-        # Pass the sequence-first tensors to the transformer
-        output = self(input_ids, target_ids)
-
-        # Adjust the reshaping to keep the sequence-first format
-        output_reshaped = output.reshape(-1, output.size(-1))
-        target_reshaped = target_ids.reshape(-1)
-
-        # Compute loss
-        loss = F.cross_entropy(output_reshaped, target_reshaped, ignore_index=0)
-
-        # Compute accuracy
-        # Take the argmax of the output to get the most likely token
-        predictions = torch.argmax(output_reshaped, dim=1)
-        # Compute accuracy with masking for padding
-        non_padding_mask = (target_reshaped != 0)
-        correct_count = ((predictions == target_reshaped) & non_padding_mask).sum().item()
-        total_count = non_padding_mask.sum().item()
-        # Avoid division by zero
-        accuracy = correct_count / total_count if total_count > 0 else 0.0
-        accuracy_tensor = torch.tensor(accuracy)
-
-
-        # Log training loss
-        self.log('train_loss', loss, on_epoch=True, prog_bar=True)
         self.train_step_outputs.append(loss)
-        
-        #Log accuracy
-        self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
-        self.train_accuracy_outputs.append(accuracy_tensor)
 
         return loss
 
