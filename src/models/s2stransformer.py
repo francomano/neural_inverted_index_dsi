@@ -115,14 +115,17 @@ class Seq2SeqTransformer(pl.LightningModule):
             # Use teacher forcing: replace the decoder input with the true target up to the current time step
             true_target_sequence = target_ids[:t + 1, :]
             padding_size = target_ids.size(0) - true_target_sequence.size(0)
-            padding_vector = torch.tensor([[0]] * padding_size).to(target_ids.device)
+
+            # Create a padding tensor with the correct batch size
+            padding_vector = torch.tensor([[0] * target_ids.size(1)] * padding_size).to(target_ids.device)
+
             decoder_input = torch.cat([true_target_sequence, padding_vector], dim=0)
 
             # Generate predictions for the current time step
             output_step = self(input_ids, decoder_input)
 
             # Compute the loss for the current time step
-            loss += F.cross_entropy(output_step.squeeze(0), target_ids[t], ignore_index=0)
+            loss += F.cross_entropy(output_step.view(-1, output_step.size(-1)), target_ids[t].view(-1), ignore_index=0)
 
             # Compute accuracy for the current time step
             predictions = torch.argmax(output_step.squeeze(0), dim=-1)
@@ -142,6 +145,7 @@ class Seq2SeqTransformer(pl.LightningModule):
         self.train_step_outputs.append(loss)
 
         return loss
+
 
 
     def validation_step(self, batch, batch_idx):
