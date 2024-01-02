@@ -35,7 +35,7 @@ class Seq2SeqTransformer(pl.LightningModule):
         self.validation_accuracy_outputs = []
 
         # Embedding layer
-        self.embedding = nn.Embedding(token_vocab_size, d_model)
+        self.embedding = nn.Embedding(token_vocab_size, d_model, padding_idx=0)
         nn.init.orthogonal_(self.embedding.weight)
 
         # Positional encoding layer
