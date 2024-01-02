@@ -157,7 +157,6 @@ class Seq2SeqTransformer(pl.LightningModule):
         total_count = non_padding_mask.sum().item()
         # Avoid division by zero
         accuracy = correct_count / total_count if total_count > 0 else 0.0
-        accuracy_tensor = torch.tensor(accuracy)
 
         # Log training loss and accuracy
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)
