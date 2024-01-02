@@ -130,11 +130,20 @@ class Seq2SeqTransformer(pl.LightningModule):
                                 ignore_index=0)
 
 
-            # Compute accuracy for the current time step
             predictions = torch.argmax(output_step.squeeze(0), dim=-1)
-            non_padding_mask = (target_ids[t] != 0)  # Exclude padding from accuracy calculation
-            correct_count += ((predictions == target_ids[t]) & non_padding_mask).sum().item()
+
+            # Assuming decoder_input is shape (seq_len, batch_size)
+            # Create a mask for non-padding positions
+            non_padding_mask = (decoder_input != 0)
+
+            # Flatten the tensors before applying the mask
+            predictions_flat = predictions.view(-1)
+            decoder_input_flat = decoder_input.view(-1)
+
+            # Only consider non-padding positions for accuracy calculation
+            correct_count += (predictions_flat[non_padding_mask.view(-1)] == decoder_input_flat[non_padding_mask.view(-1)]).sum().item()
             total_count += non_padding_mask.sum().item()
+
 
         # Average the loss over all time steps
         loss /= target_ids.size(0)
