@@ -168,10 +168,12 @@ class Seq2SeqTransformer(pl.LightningModule):
         # Avoid division by zero
         accuracy = correct_count / total_count if total_count > 0 else 0.0
         '''
+        accuracy_tensor = torch.tensor(accuracy)
         # Log training loss and accuracy
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)
         self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
         self.train_step_outputs.append(loss)
+        self.train_accuracy_outputs.append(accuracy_tensor)
 
         return loss
 
