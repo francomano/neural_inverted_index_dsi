@@ -98,7 +98,7 @@ class Seq2SeqTransformer(pl.LightningModule):
         target_ids = target_ids.permute(1, 0)
 
         # Pass the sequence-first tensors to the transformer
-        output = self(input_ids, target_ids)
+        #output = self(input_ids, target_ids)
 
         # Initialize decoder input with the padding token (assuming padding_token_id is defined)
         decoder_input = torch.tensor([[0]] * target_ids.size(1)).to(target_ids.device)
@@ -111,7 +111,7 @@ class Seq2SeqTransformer(pl.LightningModule):
         for t in range(target_ids.size(0)):
             # Use teacher forcing: replace the decoder input with the true target up to the current time step
             decoder_input = target_ids[t].unsqueeze(0)
-            print(decoder_input, t)
+            print(decoder_input.shape, t)
 
             # Generate predictions for the current time step
             output_step = self(input_ids, decoder_input)
