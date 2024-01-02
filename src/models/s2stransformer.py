@@ -98,20 +98,25 @@ class Seq2SeqTransformer(pl.LightningModule):
         target_ids = target_ids.permute(1, 0)
 
         # Pass the sequence-first tensors to the transformer
-        #output = self(input_ids, target_ids)
+        output = self(input_ids, target_ids)
 
         # Initialize decoder input with the padding token (assuming padding_token_id is defined)
         decoder_input = torch.tensor([[0]] * target_ids.size(1)).to(target_ids.device)
 
-        # Initialize the loss and correct count
+        # Initialize the loss
         loss = 0.0
+
+        # Initialize correct count and total count
         correct_count = 0
+        total_count = 0
 
         # Loop over each time step in the target sequence
         for t in range(target_ids.size(0)):
             # Use teacher forcing: replace the decoder input with the true target up to the current time step
-            decoder_input = target_ids[t].unsqueeze(0)
-            print(decoder_input.shape, t)
+            true_target_sequence = target_ids[:t + 1, :]
+            padding_size = target_ids.size(0) - true_target_sequence.size(0)
+            padding_vector = torch.tensor([[0]] * padding_size).to(target_ids.device)
+            decoder_input = torch.cat([true_target_sequence, padding_vector], dim=0)
 
             # Generate predictions for the current time step
             output_step = self(input_ids, decoder_input)
@@ -123,12 +128,12 @@ class Seq2SeqTransformer(pl.LightningModule):
             predictions = torch.argmax(output_step.squeeze(0), dim=-1)
             non_padding_mask = (target_ids[t] != 0)  # Exclude padding from accuracy calculation
             correct_count += ((predictions == target_ids[t]) & non_padding_mask).sum().item()
+            total_count += non_padding_mask.sum().item()
 
         # Average the loss over all time steps
         loss /= target_ids.size(0)
 
         # Compute accuracy over all time steps
-        total_count = non_padding_mask.sum().item() * target_ids.size(0)
         accuracy = correct_count / total_count if total_count > 0 else 0.0
 
         # Log training loss and accuracy
