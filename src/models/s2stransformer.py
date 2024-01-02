@@ -100,6 +100,8 @@ class Seq2SeqTransformer(pl.LightningModule):
         # Pass the sequence-first tensors to the transformer
         output = self(input_ids, target_ids)
 
+        '''
+
         # Initialize decoder input with the padding token (assuming padding_token_id is defined)
         decoder_input = torch.tensor([[0]] * target_ids.size(1)).to(target_ids.device)
 
@@ -113,7 +115,7 @@ class Seq2SeqTransformer(pl.LightningModule):
         # Loop over each time step in the target sequence
         for t in range(target_ids.size(0)):
             # Use teacher forcing: replace the decoder input with the true target up to the current time step
-            true_target_sequence = target_ids[:t + 1, :]
+            true_target_sequence = target_ids[:t + 1]
             padding_size = target_ids.size(0) - true_target_sequence.size(0)
 
             # Create a padding tensor with the correct batch size
@@ -138,6 +140,24 @@ class Seq2SeqTransformer(pl.LightningModule):
 
         # Compute accuracy over all time steps
         accuracy = correct_count / total_count if total_count > 0 else 0.0
+        '''
+
+        output_reshaped = output.reshape(-1, output.size(-1))
+        target_reshaped = target_ids.reshape(-1)
+
+        # Compute loss
+        loss = F.cross_entropy(output_reshaped, target_reshaped, ignore_index=0)
+
+        # Compute accuracy
+        # Take the argmax of the output to get the most likely token
+        predictions = torch.argmax(output_reshaped, dim=1)
+        # Compute accuracy with masking for padding
+        non_padding_mask = (target_reshaped != 0)
+        correct_count = ((predictions == target_reshaped) & non_padding_mask).sum().item()
+        total_count = non_padding_mask.sum().item()
+        # Avoid division by zero
+        accuracy = correct_count / total_count if total_count > 0 else 0.0
+        accuracy_tensor = torch.tensor(accuracy)
 
         # Log training loss and accuracy
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)
