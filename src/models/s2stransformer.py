@@ -98,9 +98,8 @@ class Seq2SeqTransformer(pl.LightningModule):
         target_ids = target_ids.permute(1, 0)
 
         # Pass the sequence-first tensors to the transformer
-        output = self(input_ids, target_ids)
+        #output = self(input_ids, target_ids)
 
-        '''
 
         # Initialize decoder input with the padding token (assuming padding_token_id is defined)
         decoder_input = torch.tensor([[0]] * target_ids.size(1)).to(target_ids.device)
@@ -121,13 +120,15 @@ class Seq2SeqTransformer(pl.LightningModule):
             # Create a padding tensor with the correct batch size
             padding_vector = torch.tensor([[0] * target_ids.size(1)] * padding_size).to(target_ids.device)
 
-            decoder_input = torch.cat([true_target_sequence, padding_vector], dim=0)
-
+            decoder_input = torch.cat([true_target_sequence, padding_vector.to(torch.int64)], dim=0)
             # Generate predictions for the current time step
             output_step = self(input_ids, decoder_input)
 
             # Compute the loss for the current time step
-            loss += F.cross_entropy(output_step.view(-1, output_step.size(-1)), target_ids[t].view(-1), ignore_index=0)
+            loss += F.cross_entropy(output_step.transpose(0, 1).reshape(-1, output_step.size(-1)), 
+                                decoder_input.transpose(0, 1).reshape(-1), 
+                                ignore_index=0)
+
 
             # Compute accuracy for the current time step
             predictions = torch.argmax(output_step.squeeze(0), dim=-1)
@@ -140,14 +141,14 @@ class Seq2SeqTransformer(pl.LightningModule):
 
         # Compute accuracy over all time steps
         accuracy = correct_count / total_count if total_count > 0 else 0.0
+        
         '''
-
         output_reshaped = output.reshape(-1, output.size(-1))
         target_reshaped = target_ids.reshape(-1)
 
         # Compute loss
         loss = F.cross_entropy(output_reshaped, target_reshaped, ignore_index=0)
-
+        
         # Compute accuracy
         # Take the argmax of the output to get the most likely token
         predictions = torch.argmax(output_reshaped, dim=1)
@@ -157,7 +158,7 @@ class Seq2SeqTransformer(pl.LightningModule):
         total_count = non_padding_mask.sum().item()
         # Avoid division by zero
         accuracy = correct_count / total_count if total_count > 0 else 0.0
-
+        '''
         # Log training loss and accuracy
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)
         self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
