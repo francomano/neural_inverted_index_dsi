@@ -6,7 +6,7 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 import random
 from sklearn.preprocessing import LabelEncoder
-from neural_inverted_index.utils import dataset_utils
+from neural_inverted_index_dsi.utils import dataset_utils
 
 
 # (query, document, relevance) dataset class
