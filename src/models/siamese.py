@@ -140,6 +140,7 @@ class SiameseNetworkContrastive(pl.LightningModule):
             nn.Dropout(p=dropout_prob),
             nn.Linear(128, 8),
             nn.ReLU(),
+            nn.Linear(8, 1),
         )
 
         # Contrastive loss function

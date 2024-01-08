@@ -98,9 +98,9 @@ class Seq2SeqTransformer(pl.LightningModule):
         target_ids = target_ids.permute(1, 0)
 
         # Pass the sequence-first tensors to the transformer
-        #output = self(input_ids, target_ids)
+        output = self(input_ids, target_ids)
 
-
+        '''
         # Initialize decoder input with the padding token (assuming padding_token_id is defined)
         decoder_input = torch.tensor([[0]] * target_ids.size(1)).to(target_ids.device)
 
@@ -167,7 +167,7 @@ class Seq2SeqTransformer(pl.LightningModule):
         total_count = non_padding_mask.sum().item()
         # Avoid division by zero
         accuracy = correct_count / total_count if total_count > 0 else 0.0
-        '''
+        
         accuracy_tensor = torch.tensor(accuracy)
         # Log training loss and accuracy
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)

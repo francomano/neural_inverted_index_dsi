@@ -18,6 +18,8 @@ def precision_at_k(model, queries, documents, k, max_queries=None, ret_type='emb
     """
     precisions = {}
 
+    print(type(dict(queries)))
+
     # Randomly sample the queries if max_queries is specified
     if max_queries is not None and max_queries < len(queries):
         sampled_query_ids = random.sample(list(queries.keys()), max_queries)
