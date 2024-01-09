@@ -1,12 +1,11 @@
-import string
-import torch
-from torch.utils.data import Dataset
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer
 import random
-from sklearn.preprocessing import LabelEncoder
+import numpy as np
+import torch
+import torch.nn.functional as F
+from torch.utils.data import Dataset
 from neural_inverted_index_dsi.src.utils import dataset_utils
+from transformers import T5Tokenizer
+# from sklearn.decomposition import IncrementalPCA
 
 
 # (query, document, relevance) dataset class
@@ -151,118 +150,234 @@ class TripletQueryDocumentDataset(Dataset):
                     torch.tensor(self.documents[negative]['first_L_emb'], dtype=torch.float32)
 
 
-# (documend, docid, label) dataset class
-class IndexingTrainDataset(Dataset):
+# (encoded_doc, encoded_docid) dataset class
+class DocumentDataset(Dataset):
     def __init__(
-            self,
-            documents: dict,
-            max_length: int,
-            tokenizer: callable,
-            label_encoder: LabelEncoder,  # Pass the label encoder as a parameter
-            data: list = None
+            self, 
+            documents: dict, 
+            doc_max_len: int = 32
         ):
         """
         Args:
-            documents (dict): Dictionary with documents information.
-            max_length (int): Maximum length of the input sequence.
-            tokenizer (callable): Tokenizer.
-            label_encoder (LabelEncoder): Label encoder.
-            data (list): List of tuples (input_ids, docid, label).
-        """    
+            documents (dict): Dictionary with document information.
+            doc_max_len (int): Maximum length of the input sequence.
+        """
         self.documents = documents
-        self.max_length = max_length
-        self.tokenizer = tokenizer
-        self.label_encoder = label_encoder
-        self.data = data if data else self.build_dataset()
+        self.doc_max_len = doc_max_len
+        
+        # We use the T5 tokenizer to encode the documents
+        self.tokenizer = T5Tokenizer.from_pretrained('t5-small')
 
-    # Build the dataset
+        # Define the docid special tokens
+        self.docid_eos_token = 10       # End of string token for docids
+        self.docid_pad_token = 11       # Padding token for docids
+        self.docid_start_token = 12     # Start of string token for docids
+
+        # Compute the maximum docid length
+        self.max_docid_len = max(len(str(docid)) for docid in documents.keys()) + 2  # for EOS token and start token
+
+        # Initialize the encoded documents and docids lists
+        self.encoded_docs, self.docids = self.build_dataset()
+    
     def build_dataset(self):
-        # Initialize the dataset
-        dataset = []
+        # Initialize the encoded documents and docids lists
+        docids = []
+        encoded_docs = []
 
-        # For each document (docid) in the documents dictionary
-        for doc_id, doc_data in self.documents.items():
-            # Preprocess document content
-            preprocessed_text = " ".join(dataset_utils.preprocess_text(doc_data['raw']))
-            # Tokenize the document
-            input_ids = self.tokenizer(preprocessed_text, return_tensors="pt", truncation='only_first', max_length=self.max_length).input_ids[0]
-            # Pad the input_ids and docid tensors
-            input_ids = torch.cat([input_ids[:self.max_length], torch.zeros(max(0, self.max_length - len(input_ids)), dtype=input_ids.dtype)])
+        # For each document in the documents dictionary
+        for docid, content in self.documents.items():
+            # Tokenizing and encoding the document text
+            preprocessed_text = dataset_utils.preprocess_text(content['raw'])
+            preprocessed_text = " ".join(preprocessed_text)
+            encoded_doc = self.tokenizer.encode(preprocessed_text,
+                                           add_special_tokens=True,
+                                           max_length=self.doc_max_len,
+                                           truncation=True)
 
-            # Encode docid label using the provided label encoder
-            label = self.label_encoder.transform([doc_id])[0]
-            # Tokenize the docid string
-            docid = torch.tensor(self.tokenizer(doc_id, truncation='only_first', max_length=self.max_length).input_ids)
-            # Pad the input_ids and docid tensors
-            docid = torch.cat([docid[:self.max_length], torch.zeros(max(0, self.max_length - len(docid)), dtype=input_ids.dtype)])
+            # Padding the document sequence to max_length
+            encoded_doc = F.pad(torch.tensor(encoded_doc), (0, self.doc_max_len - len(encoded_doc)), value=0)
 
-            # Append the input_ids, docid, and label to the dataset
-            dataset.append((input_ids, docid, label))
+            # Encoding the docid (treating each character as a digit)
+            encoded_docid = torch.tensor([self.docid_start_token] + list(map(int, docid)) + [self.docid_eos_token] +
+                                    [self.docid_pad_token] * (self.max_docid_len - len(docid)))
 
-        # Return the dataset
-        return dataset
+            # Appending the encoded document and docid to the lists
+            docids.append(encoded_docid)
+            encoded_docs.append(encoded_doc)
+
+        return encoded_docs, docids
 
     def __len__(self):
-        return len(self.data)
+        return len(self.encoded_docs)
 
-    def __getitem__(self, item):
-        return self.data[item]
+    def __getitem__(self, idx):
+        return self.encoded_docs[idx], self.docids[idx]
+
+    def decode_docid(self, encoded_docid):
+        # Convert to numpy array, skip the first element, convert elements to string, and concatenate
+        decoded = ''.join(map(str, np.array(encoded_docid)[1:]))
+
+        # Remove end-of-string and padding tokens from the end of the string
+        return decoded.rstrip(str(self.docid_eos_token) + str(self.docid_pad_token))
     
 
-# (query, docid, label) dataset class
+# (encoded_query, encoded_docid) dataset class
 class RetrievalDataset(Dataset):
     def __init__(
-            self,
-            queries: dict,
-            max_length: int,
-            tokenizer: callable,
-            label_encoder: LabelEncoder,
-            data: list = None
+            self, 
+            documents: dict, 
+            queries: dict, 
+            query_max_len: int = 9
         ):
         """
         Args:
-            queries (dict): Dictionary with queries information.
-            max_length (int): Maximum length of the input sequence.
-            tokenizer (callable): Tokenizer.
-            label_encoder (LabelEncoder): Label encoder.
-            data (list): List of tuples (input_ids, docid, label).
+            documents (dict): Dictionary with document information.
+            queries (dict): Dictionary with query information.
+            query_max_len (int): Maximum length of the input sequence.
         """
+        self.documents = documents
         self.queries = queries
-        self.max_length = max_length
-        self.tokenizer = tokenizer
-        self.label_encoder = label_encoder
-        self.data = self.build_dataset() if not data else data
+        self.query_max_len = query_max_len
+        
+        # We use the T5 tokenizer to encode the documents
+        self.tokenizer = T5Tokenizer.from_pretrained('t5-small')
 
-    # Build the dataset
+        # Define the docid special tokens
+        self.docid_eos_token = 10   # End of string token for docids
+        self.docid_pad_token = 11   # Padding token for docids
+        self.docid_start_token = 12
+
+        # Compute the maximum docid length
+        self.max_docid_len = max(len(str(docid)) for docid in documents.keys()) + 2  # for EOS token and start token
+
+        # Initialize the encoded documents and docids lists
+        self.encoded_queries, self.docids =  self.build_dataset()
+
     def build_dataset(self):
-        # Initialize the dataset
-        dataset = []
+        # Initialize the encoded documents and docids lists
+        docids = []
+        encoded_queries = []
 
-        # For each query in the queries dictionary
-        for query_id, query_data in self.queries.items():
-            # Preprocess document content
-            preprocessed_text = " ".join(dataset_utils.preprocess_text(query_data['raw']))
-            # Tokenize the document
-            input_ids = self.tokenizer(preprocessed_text, return_tensors="pt", truncation='only_first', max_length=self.max_length).input_ids[0]
-            # Pad the input_ids and docid tensors
-            input_ids = torch.cat([input_ids[:self.max_length], torch.zeros(max(0, self.max_length - len(input_ids)), dtype=input_ids.dtype)])
+        # Iterate over the queries
+        for queryid, content in self.queries.items():
+            # Tokenizing and encoding the document text
+            preprocessed_text = dataset_utils.preprocess_text(content['raw'])
+            preprocessed_text = " ".join(preprocessed_text)
+            encoded_query = self.tokenizer.encode(preprocessed_text,
+                                                add_special_tokens=True,
+                                                max_length=self.query_max_len,
+                                                truncation=True)
 
-            # For each document in the docids_list
-            for doc_id in query_data['docids_list']:
-                # Encode docid label using the provided label encoder
-                label = self.label_encoder.transform([doc_id])[0]
-                # Tokenize the docid string
-                docid = torch.tensor(self.tokenizer(doc_id, truncation='only_first', max_length=self.max_length).input_ids)
-                # Pad the input_ids and docid tensors
-                docid = torch.cat([docid[:self.max_length], torch.zeros(max(0, self.max_length - len(docid)), dtype=input_ids.dtype)])
-                # Append the input_ids, docid, and label to the dataset
-                dataset.append((input_ids, docid, label))
+            # Padding the document sequence to max_length
+            encoded_query = F.pad(torch.tensor(encoded_query), (0, self.query_max_len - len(encoded_query)), value=0)
 
-        # Return the dataset
-        return dataset
+            for docid in content['docids_list']:
+
+                # Encoding the docid (treating each character as a digit)
+                encoded_docid = torch.tensor([self.docid_start_token] + list(map(int, docid)) + [self.docid_eos_token] +
+                                        [self.docid_pad_token] * (self.max_docid_len - len(docid)))
+
+
+                #self.docids.append(encoded_docid)
+                encoded_queries.append(encoded_query)
+                docids.append(encoded_docid)
+
+        return encoded_queries, docids
 
     def __len__(self):
-        return len(self.data)
+        return len(self.encoded_queries)
 
-    def __getitem__(self, item):
-        return self.data[item]
+    def __getitem__(self, idx):
+        return self.encoded_queries[idx], self.docids[idx]
+
+    def decode_docid(self, encoded_docid):
+        # Convert to numpy array, skip the first element, convert elements to string, and concatenate
+        decoded = ''.join(map(str, np.array(encoded_docid)[1:]))
+
+        # Remove end-of-string and padding tokens from the end of the string
+        return decoded.rstrip(str(self.docid_eos_token) + str(self.docid_pad_token))
+
+
+
+'''
+class SemanticDocIDManager:
+    def __init__(self, documents, max_docid_dim=10, batch_size=None):
+        self.documents = documents
+        self.max_docid_dim = max_docid_dim
+        self.batch_size = batch_size
+        self.semantic_docids, self.reverse_mapping = self.create_semantic_docids()
+
+    def create_semantic_docids(self):
+        embeddings = np.array([content['emb'] for content in self.documents.values()])
+
+        ipca = IncrementalPCA(n_components=self.max_docid_dim, batch_size=self.batch_size)
+        reduced_embeddings = ipca.fit_transform(embeddings)
+
+        # Normalize: absolute value and scale
+        normalized_embeddings = np.abs(reduced_embeddings) * 1000  # Scale factor
+
+        semantic_docids = {}
+        reverse_mapping = {}
+        for docid, normalized_embedding in zip(self.documents.keys(), normalized_embeddings):
+            # Convert to a flat string of integers
+            semantic_id = ''.join(map(lambda x: f"{int(x):01d}", normalized_embedding))  # Zero-padding for uniform length
+            semantic_docids[docid] = semantic_id
+            reverse_mapping[semantic_id] = docid
+        return semantic_docids, reverse_mapping
+
+    def map_semantic_to_original(self, semantic_docid):
+        return self.reverse_mapping.get(semantic_docid, None)
+
+
+class DocumentDataset(Dataset):
+    def __init__(self, documents, semantic_docids, doc_max_len=7):
+        self.tokenizer = T5Tokenizer.from_pretrained('t5-small')
+        self.documents = documents
+        self.semantic_docids = semantic_docids
+        self.doc_max_len = doc_max_len
+
+        self.encoded_docs = []
+        self.encoded_semantic_docids = []
+
+        self.docid_eos_token = 10   # End of string token for docids
+        self.docid_pad_token = 11   # Padding token for docids
+        self.docid_start_token = 12
+
+        self.max_docid_len = 8
+
+        for docid, content in documents.items():
+            # Tokenizing and encoding the document text
+            preprocessed_text = dataset_utils.preprocess_text(content['raw'])
+            preprocessed_text = " ".join(preprocessed_text)
+            encoded_doc = self.tokenizer.encode(preprocessed_text,add_special_tokens=True,max_length=self.doc_max_len,truncation=True)
+            encoded_doc = F.pad(torch.tensor(encoded_doc), (0, self.doc_max_len - len(encoded_doc)), value=0)
+            self.encoded_docs.append(encoded_doc)
+
+            # Encoding the semantic docid
+            semantic_docid = self.semantic_docids[docid]
+            #encoded_semantic_docid = self.tokenizer.encode(semantic_docid, add_special_tokens=False)
+            # Encoding the docid (treating each character as a digit)
+            #print(semantic_docid)
+            encoded_semantic_docid = torch.tensor([self.docid_start_token] + list(map(int, semantic_docid)) + [self.docid_eos_token] +
+                                     [self.docid_pad_token] * (self.max_docid_len - len(semantic_docid)))
+            self.encoded_semantic_docids.append(encoded_semantic_docid)
+
+    def __len__(self):
+        return len(self.encoded_docs)
+
+    def __getitem__(self, idx):
+        return self.encoded_docs[idx], self.encoded_semantic_docids[idx]
+
+    def decode_docid(self, encoded_docid):
+        # Convert to numpy array and skip the first element (start token)
+        docid_array = np.array(encoded_docid)[1:]
+
+        # Convert array elements to string and concatenate them
+        decoded = ''.join(map(str, docid_array))
+
+        # Remove end-of-string and padding tokens from the end of the string
+        decoded = decoded.rstrip(str(self.docid_eos_token))
+        decoded = decoded.rstrip(str(self.docid_pad_token))
+
+        return decoded
+'''

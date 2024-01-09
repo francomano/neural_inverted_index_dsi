@@ -1,4 +1,3 @@
-import numpy as np
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader, random_split
 
@@ -14,15 +13,14 @@ def train_model(dataset, model, max_epochs, batch_size=1024, split_ratio=0.8, **
 
     # Creating dataloaders
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, **dataloader_kwargs)
-    eval_dataloader = DataLoader(eval_dataset, batch_size=batch_size, shuffle=False, **dataloader_kwargs)
+    val_dataloader = DataLoader(eval_dataset, batch_size=batch_size, shuffle=False, **dataloader_kwargs)
 
     # Training the model
     trainer = pl.Trainer(max_epochs=max_epochs)
-    trainer.fit(model, train_dataloader, eval_dataloader)
+    trainer.fit(model, train_dataloader, val_dataloader)
+
 
 def learn_docids(dataset, model, max_epochs, batch_size=1024, **dataloader_kwargs):
-
-
     # Creating dataloaders
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, **dataloader_kwargs)
 

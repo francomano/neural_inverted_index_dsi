@@ -1,7 +1,5 @@
-import difflib
 import random
 import torch.nn.functional as F
-from sklearn.metrics import precision_score
 from sklearn.metrics.pairwise import cosine_similarity
 import torch
 import numpy as np
@@ -17,8 +15,6 @@ def precision_at_k(model, queries, documents, k, max_queries=None, ret_type='emb
     :return: Dictionary of precision at k for each query.
     """
     precisions = {}
-
-    print(type(dict(queries)))
 
     # Randomly sample the queries if max_queries is specified
     if max_queries is not None and max_queries < len(queries):
@@ -97,3 +93,54 @@ def precision_at_k_tfidf(queries, doc_ids, tfidf_matrix, vectorizer, k, num_quer
 
     return results
 
+
+def top_k_docids(model, query, k, max_length, start_token_id):
+    """
+    Generate top-k sequences of document IDs for a given query.
+
+    Args:
+    - model: The trained seq2seq model.
+    - query: The input query as a tensor (batch_size, seq_len).
+    - k: The number of sequences to return.
+    - max_length: The maximum length of each generated sequence.
+    - start_token_id: The ID of the start token.
+
+    Returns:
+    - top_k_sequences: A list of k sequences, each of length max_length.
+    """
+
+    model.eval()  # Set the model to evaluation mode
+
+    # Ensure the query tensor has a batch dimension
+    if query.dim() == 1:
+        query = query.unsqueeze(1)  # Add batch dimension
+    elif query.size(0) < query.size(1):
+        query = query.permute(1, 0)  # Swap dimensions if necessary
+
+    # Initialize the input tensor with the start token for each item in the batch
+    input_seq = torch.full((1, k), start_token_id, dtype=torch.long, device=query.device)
+
+    # Initialize a tensor to store the top k sequences
+    top_k_sequences = torch.zeros(max_length, k, dtype=torch.long, device=query.device)
+
+    for t in range(max_length):
+        output = model(query.repeat(1, k), input_seq)  # Repeat query for k hypotheses
+        next_token_probs, next_tokens = torch.topk(output[-1, :, :], k, dim=-1)
+
+        if t == 0:
+            # For the first step, all k tokens are different
+            # Select the top 1 token from each of the k hypotheses
+            top_k_sequences[t] = next_tokens[0]
+        else:
+            # For subsequent steps, choose the next token based on the highest probability
+            # Use argmax to find the indices of the highest probability tokens
+            selected_indices = next_token_probs.argmax(dim=-1)
+            top_k_sequences[t] = next_tokens.gather(1, selected_indices.unsqueeze(0)).squeeze()
+
+        # Update input_seq for the next step with the selected tokens
+        input_seq = torch.cat((input_seq, top_k_sequences[t].unsqueeze(0)), dim=0)
+
+    # Convert the sequences to a list for easy interpretation
+    top_k_sequences = top_k_sequences.t().tolist()
+
+    return top_k_sequences
