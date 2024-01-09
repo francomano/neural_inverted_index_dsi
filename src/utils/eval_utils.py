@@ -144,3 +144,61 @@ def top_k_docids(model, query, k, max_length, start_token_id):
     top_k_sequences = top_k_sequences.t().tolist()
 
     return top_k_sequences
+
+
+def top_k_docids_constrained(model, query, trie_data, k, max_length, start_token_id):
+    # Set the model to evaluation mode
+    model.eval()  
+
+    # Ensure the query tensor has a batch dimension
+    if query.dim() == 1:
+        query = query.unsqueeze(1)  # Add batch dimension
+    elif query.size(0) < query.size(1):
+        query = query.permute(1, 0)  # Swap dimensions if necessary
+
+    # Initialize the input tensor with the start token for each item in the batch
+    input_seq = torch.full((1, k), start_token_id, dtype=torch.long, device=query.device)
+
+    # Initialize a tensor to store the top k sequences
+    top_k_sequences = torch.zeros(max_length, k, dtype=torch.long, device=query.device)
+
+    # Until max_length is reached
+    for t in range(max_length):
+        # Compute the lists of possible next tokens for each of the k hypotheses
+        positions_list = [trie_data.get_next_tokens(input_seq[:, i].tolist()) for i in range(k)]
+        # Repeat query for k hypotheses
+        output = model(query.repeat(1, k), input_seq)  
+
+        # Apply a mask to the output so that tokens that are not in the list of possible next tokens are never chosen
+        for batch_idx, positions in enumerate(positions_list): 
+            # Create a mask with False everywhere except for the positions of the possible next tokens
+            mask = torch.zeros(output.size(-1), dtype=bool)
+            mask[positions] = True
+            # Set the output logits of the impossible tokens to -inf
+            output[:, batch_idx, ~mask] = -torch.inf
+            # If all tokens are impossible, set the output logits of the end token to 0
+            # This ensures that the end token is always chosen if all other tokens are impossible
+            if not mask.any():
+                output[:, batch_idx, 11] = 0
+        
+        # Compute the top k next tokens and their log probabilities
+        next_token_probs, next_tokens = torch.topk(output[-1, :, :], k, dim=-1)
+
+        if t == 0:
+            # For the first step, all k tokens are different
+            # Select the top 1 token from each of the k hypotheses
+            top_k_sequences[t] = next_tokens[0]
+        else:
+            # For subsequent steps, choose the next token based on the highest probability
+            selected_indices = next_token_probs.argmax(dim=-1)
+            # Use gather to select the highest probability tokens
+            top_k_sequences[t] = next_tokens.gather(1, selected_indices.unsqueeze(0).transpose(0, 1)).squeeze()
+
+        # Update input_seq for the next step with the selected tokens
+        input_seq = torch.cat((input_seq, top_k_sequences[t].unsqueeze(0)), dim=0)
+
+    # Convert the sequences to a list for easy interpretation
+    top_k_sequences = top_k_sequences.t().tolist()
+
+    # Return the top k sequences
+    return top_k_sequences

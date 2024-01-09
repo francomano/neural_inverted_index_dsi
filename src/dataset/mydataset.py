@@ -171,7 +171,7 @@ class DocumentDataset(Dataset):
         # Define the docid special tokens
         self.docid_eos_token = 10       # End of string token for docids
         self.docid_pad_token = 11       # Padding token for docids
-        self.docid_start_token = 12     # Start of string token for docids
+        self.docid_sos_token = 12     # Start of string token for docids
 
         # Compute the maximum docid length
         self.max_docid_len = max(len(str(docid)) for docid in documents.keys()) + 2  # for EOS token and start token
@@ -198,7 +198,7 @@ class DocumentDataset(Dataset):
             encoded_doc = F.pad(torch.tensor(encoded_doc), (0, self.doc_max_len - len(encoded_doc)), value=0)
 
             # Encoding the docid (treating each character as a digit)
-            encoded_docid = torch.tensor([self.docid_start_token] + list(map(int, docid)) + [self.docid_eos_token] +
+            encoded_docid = torch.tensor([self.docid_sos_token] + list(map(int, docid)) + [self.docid_eos_token] +
                                     [self.docid_pad_token] * (self.max_docid_len - len(docid)))
 
             # Appending the encoded document and docid to the lists
@@ -214,11 +214,24 @@ class DocumentDataset(Dataset):
         return self.encoded_docs[idx], self.docids[idx]
 
     def decode_docid(self, encoded_docid):
-        # Convert to numpy array, skip the first element, convert elements to string, and concatenate
-        decoded = ''.join(map(str, np.array(encoded_docid)[1:]))
+        # Convert to list (if it's not already)
+        encoded_docid_list = encoded_docid.tolist() if isinstance(encoded_docid, torch.Tensor) else encoded_docid
 
-        # Remove end-of-string and padding tokens from the end of the string
-        return decoded.rstrip(str(self.docid_eos_token) + str(self.docid_pad_token))
+        # Remove the start token if it's the first character
+        if encoded_docid_list[0] == self.docid_sos_token:
+            encoded_docid_list = encoded_docid_list[1:]
+
+        # Check if EOS token is in the list and keep only the part of the list up to the EOS token
+        if self.docid_eos_token in encoded_docid_list:
+            encoded_docid_list = encoded_docid_list[:encoded_docid_list.index(self.docid_eos_token)]
+        else:
+            # If EOS token is not found, handle accordingly (e.g., use the entire list or throw an error)
+            encoded_docid_list = [self.docid_eos_token]
+
+        # Convert the remaining tokens to string and join them
+        decoded = ''.join(map(str, encoded_docid_list))
+
+        return decoded
     
 
 # (encoded_query, encoded_docid) dataset class
@@ -245,7 +258,7 @@ class RetrievalDataset(Dataset):
         # Define the docid special tokens
         self.docid_eos_token = 10   # End of string token for docids
         self.docid_pad_token = 11   # Padding token for docids
-        self.docid_start_token = 12
+        self.docid_sos_token = 12   # Start of string token for docids
 
         # Compute the maximum docid length
         self.max_docid_len = max(len(str(docid)) for docid in documents.keys()) + 2  # for EOS token and start token
@@ -274,7 +287,7 @@ class RetrievalDataset(Dataset):
             for docid in content['docids_list']:
 
                 # Encoding the docid (treating each character as a digit)
-                encoded_docid = torch.tensor([self.docid_start_token] + list(map(int, docid)) + [self.docid_eos_token] +
+                encoded_docid = torch.tensor([self.docid_sos_token] + list(map(int, docid)) + [self.docid_eos_token] +
                                         [self.docid_pad_token] * (self.max_docid_len - len(docid)))
 
 
@@ -291,11 +304,24 @@ class RetrievalDataset(Dataset):
         return self.encoded_queries[idx], self.docids[idx]
 
     def decode_docid(self, encoded_docid):
-        # Convert to numpy array, skip the first element, convert elements to string, and concatenate
-        decoded = ''.join(map(str, np.array(encoded_docid)[1:]))
+        # Convert to list (if it's not already)
+        encoded_docid_list = encoded_docid.tolist() if isinstance(encoded_docid, torch.Tensor) else encoded_docid
 
-        # Remove end-of-string and padding tokens from the end of the string
-        return decoded.rstrip(str(self.docid_eos_token) + str(self.docid_pad_token))
+        # Remove the start token if it's the first character
+        if encoded_docid_list[0] == self.docid_sos_token:
+            encoded_docid_list = encoded_docid_list[1:]
+
+        # Check if EOS token is in the list and keep only the part of the list up to the EOS token
+        if self.docid_eos_token in encoded_docid_list:
+            encoded_docid_list = encoded_docid_list[:encoded_docid_list.index(self.docid_eos_token)]
+        else:
+            # If EOS token is not found, handle accordingly (e.g., use the entire list or throw an error)
+            encoded_docid_list = [self.docid_eos_token]
+
+        # Convert the remaining tokens to string and join them
+        decoded = ''.join(map(str, encoded_docid_list))
+
+        return decoded
 
 
 
@@ -341,7 +367,7 @@ class DocumentDataset(Dataset):
 
         self.docid_eos_token = 10   # End of string token for docids
         self.docid_pad_token = 11   # Padding token for docids
-        self.docid_start_token = 12
+        self.docid_sos_token = 12
 
         self.max_docid_len = 8
 
@@ -358,7 +384,7 @@ class DocumentDataset(Dataset):
             #encoded_semantic_docid = self.tokenizer.encode(semantic_docid, add_special_tokens=False)
             # Encoding the docid (treating each character as a digit)
             #print(semantic_docid)
-            encoded_semantic_docid = torch.tensor([self.docid_start_token] + list(map(int, semantic_docid)) + [self.docid_eos_token] +
+            encoded_semantic_docid = torch.tensor([self.docid_sos_token] + list(map(int, semantic_docid)) + [self.docid_eos_token] +
                                      [self.docid_pad_token] * (self.max_docid_len - len(semantic_docid)))
             self.encoded_semantic_docids.append(encoded_semantic_docid)
 
