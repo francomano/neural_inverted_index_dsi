@@ -202,3 +202,43 @@ def top_k_docids_constrained(model, query, trie_data, k, max_length, start_token
 
     # Return the top k sequences
     return top_k_sequences
+
+
+
+def top_k_beam_search(model, query, trie_data, k, max_length, start_token_id):
+    model.eval()
+
+    # Handle query tensor batch dimension
+    if query.dim() == 1:
+        query = query.unsqueeze(0)
+    elif query.size(0) < query.size(1):
+        query = query.permute(1, 0)
+
+    # Initialize the hypotheses
+    hypotheses = [{'tokens': [start_token_id], 'prob': 1.0}]
+
+    for step in range(max_length):
+        all_candidates = []
+
+        for h in hypotheses:
+            input_seq = torch.tensor(h['tokens'], dtype=torch.long, device=query.device).unsqueeze(1)
+            output = model(query, input_seq)
+
+            # Get possible next tokens
+            next_tokens = trie_data.get_next_tokens(h['tokens'])
+
+            # Get probabilities for the next tokens
+            probs = torch.softmax(output[-1, 0, next_tokens], dim=0).tolist()
+
+            # Create new hypotheses
+            for idx, token in enumerate(next_tokens):
+                new_hyp = {'tokens': h['tokens'] + [token], 'prob': h['prob'] * probs[idx]}
+                all_candidates.append(new_hyp)
+
+        # Keep top k hypotheses
+        hypotheses = sorted(all_candidates, key=lambda x: x['prob'], reverse=True)[:k]
+
+    # Extract token sequences
+    top_k_sequences = [h['tokens'] for h in hypotheses]
+
+    return top_k_sequences
