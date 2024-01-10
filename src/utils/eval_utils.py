@@ -205,7 +205,7 @@ def top_k_docids_constrained(model, query, trie_data, k, max_length, start_token
 
 
 
-def top_k_beam_search(model, query, trie_data, k, max_length, start_token_id):
+def top_k_beam_search(model, query, trie_data, k, max_length, start_token_id, eos_token_id=10):
     model.eval()
 
     # Handle query tensor batch dimension
@@ -221,6 +221,11 @@ def top_k_beam_search(model, query, trie_data, k, max_length, start_token_id):
         all_candidates = []
 
         for h in hypotheses:
+            # Skip extension for completed sequences
+            if h['tokens'][-1] == eos_token_id:
+                all_candidates.append(h)
+                continue
+
             input_seq = torch.tensor(h['tokens'], dtype=torch.long, device=query.device).unsqueeze(1)
             output = model(query, input_seq)
 
