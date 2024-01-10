@@ -139,8 +139,6 @@ class BaseTransformer(pl.LightningModule):
         self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
         self.train_accuracy_outputs.append(accuracy_tensor)
 
-        self.teacher_forcing_prob -= 0.00005
-
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -208,6 +206,8 @@ class BaseTransformer(pl.LightningModule):
             self.log("validation_accuracy", epoch_val_acc)
             #print("val_acc_avg: ", epoch_val_acc)
             self.validation_accuracy_outputs.clear()
+        #at each validation epoch, we reduce the teacher forcing presence     
+        self.teacher_forcing_prob -= 0.003
 
     def calculate_loss(self, output, target):
         criterion = nn.CrossEntropyLoss(ignore_index=11)  # Use docid padding token
