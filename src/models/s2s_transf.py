@@ -190,23 +190,23 @@ class BaseTransformer(pl.LightningModule):
         if not len(self.train_step_outputs) == 0:
             epoch_average_train = torch.stack(self.train_step_outputs).mean()
             self.log("train_epoch_average", epoch_average_train)
-            print("train_loss_avg: ", epoch_average_train)
+            #print("train_loss_avg: ", epoch_average_train)
             self.train_step_outputs.clear()
 
             epoch_train_acc = torch.stack(self.train_accuracy_outputs).mean()
             self.log("train_accuracy", epoch_train_acc)
-            print("train_acc_avg: ", epoch_train_acc)
+            #print("train_acc_avg: ", epoch_train_acc)
             self.train_accuracy_outputs.clear()
 
         if not len(self.validation_step_outputs) == 0:
             epoch_average = torch.stack(self.validation_step_outputs).mean()
             self.log("validation_epoch_average", epoch_average)
-            print("val_loss_avg: ", epoch_average)
+            #print("val_loss_avg: ", epoch_average)
             self.validation_step_outputs.clear()
 
             epoch_val_acc = torch.stack(self.validation_accuracy_outputs).mean()
             self.log("validation_accuracy", epoch_val_acc)
-            print("val_acc_avg: ", epoch_val_acc)
+            #print("val_acc_avg: ", epoch_val_acc)
             self.validation_accuracy_outputs.clear()
 
     def calculate_loss(self, output, target):
