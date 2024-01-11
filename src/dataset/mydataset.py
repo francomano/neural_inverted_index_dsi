@@ -251,6 +251,9 @@ class RetrievalDataset(Dataset):
         self.documents = documents
         self.queries = queries
         self.query_max_len = query_max_len
+
+        # Initialize tokenized query to query dictionary
+        self.query_ids = dict()
         
         # We use the T5 tokenizer to encode the documents
         self.tokenizer = T5Tokenizer.from_pretrained('t5-small')
@@ -283,9 +286,12 @@ class RetrievalDataset(Dataset):
 
             # Padding the document sequence to max_length
             encoded_query = F.pad(torch.tensor(encoded_query), (0, self.query_max_len - len(encoded_query)), value=0)
+            
+            # Add the tokenized query to query dictionary
+            self.query_ids[encoded_query] = queryid
 
+            # For each document in the documents dictionary
             for docid in content['docids_list']:
-
                 # Encoding the docid (treating each character as a digit)
                 encoded_docid = torch.tensor([self.docid_sos_token] + list(map(int, docid)) + [self.docid_eos_token] +
                                         [self.docid_pad_token] * (self.max_docid_len - len(docid)))

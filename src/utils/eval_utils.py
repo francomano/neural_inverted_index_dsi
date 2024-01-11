@@ -3,17 +3,21 @@ import torch.nn.functional as F
 from sklearn.metrics.pairwise import cosine_similarity
 import torch
 import numpy as np
+from tqdm import tqdm
 
+# Precision at K
 def precision_at_k(model, queries, documents, k, max_queries=None, ret_type='emb'):
     """
     Computes the precision at k for a given model and data.
 
-    :param model: PyTorch model used to compute similarity scores.
-    :param queries: Dictionary of queries with their embeddings and correlated doc IDs.
-    :param documents: Dictionary of document embeddings.
-    :param k: Number of top documents to consider for calculating precision.
+    Args:
+        model: PyTorch model used to compute similarity scores.
+        queries: Dictionary of queries with their embeddings and correlated doc IDs.
+        documents: Dictionary of document embeddings.
+        k: Number of top documents to consider for calculating precision.
     :return: Dictionary of precision at k for each query.
     """
+    # Initialize the dictionary for storing the precisions
     precisions = {}
 
     # Randomly sample the queries if max_queries is specified
@@ -22,7 +26,7 @@ def precision_at_k(model, queries, documents, k, max_queries=None, ret_type='emb
         queries = {qid: queries[qid] for qid in sampled_query_ids}
     
     # Iterate through each query
-    for query_id, query_info in queries.items():
+    for query_id, query_info in tqdm(queries.items(), desc="Computing Precision at K"):
         # Get the query embedding and relevant documents
         query_emb = torch.tensor(query_info[ret_type], dtype=torch.float32)
         relevant_docs = query_info['docids_list']
@@ -71,13 +75,24 @@ def precision_at_k(model, queries, documents, k, max_queries=None, ret_type='emb
 
 # Precision at K for TF-IDF
 def precision_at_k_tfidf(queries, doc_ids, tfidf_matrix, vectorizer, k, num_queries=5):
+    """
+    Computes the precision at k for a given TF-IDF matrix and data.
+
+    Args:
+        queries: Dictionary of queries with their embeddings and correlated doc IDs.
+        doc_ids: List of document IDs.
+        tfidf_matrix: TF-IDF matrix.
+        vectorizer: TF-IDF vectorizer.
+        k: Number of top documents to consider for calculating precision.
+        num_queries: Number of queries to consider.
+    """
     # Initialize the results dictionary
     results = {}
 
     # Get num_queries random queries
     query_ids = random.sample(list(queries.keys()), num_queries)
 
-    for query_id in query_ids:
+    for query_id in tqdm(query_ids, desc="Computing Precision at K"):
         # Get the relevant documents for the query
         relevant_docs = queries[query_id]["docids_list"]
         # Compute the TF-IDF matrix
@@ -94,23 +109,18 @@ def precision_at_k_tfidf(queries, doc_ids, tfidf_matrix, vectorizer, k, num_quer
     return results
 
 
-def top_k_docids(model, query, k, max_length, start_token_id):
+# Compute top k docids greedly
+def top_k_docids(model, query, k, max_length, decode_docid_fn, docid_sos_token=12):
     """
     Generate top-k sequences of document IDs for a given query.
 
     Args:
-    - model: The trained seq2seq model.
-    - query: The input query as a tensor (batch_size, seq_len).
-    - k: The number of sequences to return.
-    - max_length: The maximum length of each generated sequence.
-    - start_token_id: The ID of the start token.
-
-    Returns:
-    - top_k_sequences: A list of k sequences, each of length max_length.
+        model: The trained seq2seq model.
+        query: The input query as a tensor (batch_size, seq_len).
+        k: The number of sequences to return.
+        max_length: The maximum length of each generated sequence.
+        docid_sos_token: The ID of the start token.
     """
-
-    model.eval()  # Set the model to evaluation mode
-
     # Ensure the query tensor has a batch dimension
     if query.dim() == 1:
         query = query.unsqueeze(1)  # Add batch dimension
@@ -118,7 +128,7 @@ def top_k_docids(model, query, k, max_length, start_token_id):
         query = query.permute(1, 0)  # Swap dimensions if necessary
 
     # Initialize the input tensor with the start token for each item in the batch
-    input_seq = torch.full((1, k), start_token_id, dtype=torch.long, device=query.device)
+    input_seq = torch.full((1, k), docid_sos_token, dtype=torch.long, device=query.device)
 
     # Initialize a tensor to store the top k sequences
     top_k_sequences = torch.zeros(max_length, k, dtype=torch.long, device=query.device)
@@ -140,102 +150,58 @@ def top_k_docids(model, query, k, max_length, start_token_id):
         # Update input_seq for the next step with the selected tokens
         input_seq = torch.cat((input_seq, top_k_sequences[t].unsqueeze(0)), dim=0)
 
-    # Convert the sequences to a list for easy interpretation
-    top_k_sequences = top_k_sequences.t().tolist()
+    # Convert the top k sequences to a numpy array of decoded ids
+    top_k_sequences = np.array([''.join(map(str, decode_docid_fn(lst))) for lst in top_k_sequences.t().tolist()])
 
     return top_k_sequences
 
 
-def top_k_docids_constrained(model, query, trie_data, k, max_length, start_token_id):
-    # Set the model to evaluation mode
-    model.eval()  
+# Constrained beam search
+def top_k_beam_search(model, query, trie_data, k, max_length, decode_docid_fn, docid_sos_token=12, docid_eos_token=10):
+    """
+    Performs constrained beam search for a given query and returns the top k sequences.
 
-    # Ensure the query tensor has a batch dimension
-    if query.dim() == 1:
-        query = query.unsqueeze(1)  # Add batch dimension
-    elif query.size(0) < query.size(1):
-        query = query.permute(1, 0)  # Swap dimensions if necessary
-
-    # Initialize the input tensor with the start token for each item in the batch
-    input_seq = torch.full((1, k), start_token_id, dtype=torch.long, device=query.device)
-
-    # Initialize a tensor to store the top k sequences
-    top_k_sequences = torch.zeros(max_length, k, dtype=torch.long, device=query.device)
-
-    # Until max_length is reached
-    for t in range(max_length):
-        # Compute the lists of possible next tokens for each of the k hypotheses
-        positions_list = [trie_data.get_next_tokens(input_seq[:, i].tolist()) for i in range(k)]
-        # Repeat query for k hypotheses
-        output = model(query.repeat(1, k), input_seq)  
-
-        # Apply a mask to the output so that tokens that are not in the list of possible next tokens are never chosen
-        for batch_idx, positions in enumerate(positions_list): 
-            # Create a mask with False everywhere except for the positions of the possible next tokens
-            mask = torch.zeros(output.size(-1), dtype=bool)
-            mask[positions] = True
-            # Set the output logits of the impossible tokens to -inf
-            output[:, batch_idx, ~mask] = -torch.inf
-            # If all tokens are impossible, set the output logits of the end token to 0
-            # This ensures that the end token is always chosen if all other tokens are impossible
-            if not mask.any():
-                output[:, batch_idx, 11] = 0
-        
-        # Compute the top k next tokens and their log probabilities
-        next_token_probs, next_tokens = torch.topk(output[-1, :, :], k, dim=-1)
-
-        if t == 0:
-            # For the first step, all k tokens are different
-            # Select the top 1 token from each of the k hypotheses
-            top_k_sequences[t] = next_tokens[0]
-        else:
-            # For subsequent steps, choose the next token based on the highest probability
-            selected_indices = next_token_probs.argmax(dim=-1)
-            # Use gather to select the highest probability tokens
-            top_k_sequences[t] = next_tokens.gather(1, selected_indices.unsqueeze(0).transpose(0, 1)).squeeze()
-
-        # Update input_seq for the next step with the selected tokens
-        input_seq = torch.cat((input_seq, top_k_sequences[t].unsqueeze(0)), dim=0)
-
-    # Convert the sequences to a list for easy interpretation
-    top_k_sequences = top_k_sequences.t().tolist()
-
-    # Return the top k sequences
-    return top_k_sequences
-
-
-
-def top_k_beam_search(model, query, trie_data, k, max_length, start_token_id, eos_token_id=10):
-    model.eval()
-
+    Args:
+        model: PyTorch model used to compute the next token probabilities.
+        query: Query tensor.
+        trie_data: Trie data structure.
+        k: Number of top sequences to return.
+        max_length: Maximum length of the sequences.
+        decode_docid: Function used to decode the doc ID sequences.
+        docid_sos_token: Start of sequence token.
+        docid_eos_token: End of sequence token.
+    """
     # Handle query tensor batch dimension
     if query.dim() == 1:
         query = query.unsqueeze(0)
-    elif query.size(0) < query.size(1):
-        query = query.permute(1, 0)
+    
+    # Permute batch dimension
+    query = query.permute(1, 0)
 
     # Initialize the hypotheses
-    hypotheses = [{'tokens': [start_token_id], 'prob': 1.0}]
+    hypotheses = [{'tokens': [docid_sos_token], 'prob': 1.0}]
 
-    for step in range(max_length):
+    for _ in range(max_length):
+        # Initialize list for storing all possible candidates
         all_candidates = []
 
+        # Iterate through each hypothesis
         for h in hypotheses:
             # Skip extension for completed sequences
-            if h['tokens'][-1] == eos_token_id:
+            if h['tokens'][-1] == docid_eos_token:
                 all_candidates.append(h)
                 continue
-
+            
+            # Get the input sequence tensor
             input_seq = torch.tensor(h['tokens'], dtype=torch.long, device=query.device).unsqueeze(1)
+            # Get the output from the model
             output = model(query, input_seq)
-
             # Get possible next tokens
             next_tokens = trie_data.get_next_tokens(h['tokens'])
-
             # Get probabilities for the next tokens
             probs = torch.softmax(output[-1, 0, next_tokens], dim=0).tolist()
 
-            # Create new hypotheses
+            # Create new hypotheses and add them to the list
             for idx, token in enumerate(next_tokens):
                 new_hyp = {'tokens': h['tokens'] + [token], 'prob': h['prob'] * probs[idx]}
                 all_candidates.append(new_hyp)
@@ -244,6 +210,93 @@ def top_k_beam_search(model, query, trie_data, k, max_length, start_token_id, eo
         hypotheses = sorted(all_candidates, key=lambda x: x['prob'], reverse=True)[:k]
 
     # Extract token sequences
-    top_k_sequences = [h['tokens'] for h in hypotheses]
+    top_k_sequences = np.array([''.join(map(str, decode_docid_fn(h['tokens']))) for h in hypotheses])
 
     return top_k_sequences
+
+
+# Average precision
+def compute_AP(top_k_ids, docids_list):
+    """
+    Computes the average precision for a given query.
+
+    Args:
+        top_k_ids: List of top k retrieved document IDs.
+        docids_list: List of relevant document IDs.
+    """
+    # Create a boolean mask where top_k_ids are in docids_list
+    is_relevant = np.isin(top_k_ids, docids_list)
+    # If there are no relevant documents, return 0
+    if np.all(~is_relevant): return 0
+    # Generate an array of positions (1-indexed)
+    positions = np.arange(1, len(top_k_ids) + 1)
+    # Compute precision at each relevant position
+    precision_at_relevant = np.where(is_relevant, 1 / positions, 0)
+    # Filter out non-zero elements and compute the mean
+    non_zero_mean = precision_at_relevant[precision_at_relevant != 0].mean()
+    return non_zero_mean
+
+
+# Precision at k
+def compute_PatK(model, trie_data, test_dataset, dataset, queries, k=10, max_length=10):
+    """
+    Computes the precision at k for a given model and dataset.
+
+    Args:
+        model: PyTorch model used to compute the next token probabilities.
+        trie_data: Trie data structure.
+        dataset: Dataset object.
+        queries: Dictionary of queries.
+        k: Number of top sequences to return.
+        max_length: Maximum length of the sequences.
+    """
+    # Initialize precision at k
+    running_mean_PatK = 0
+
+    # Iterate over test dataset
+    for i, (query, _) in enumerate(tqdm(test_dataset, desc="Computing p@k")):
+        # Compute top-k docids for the current query
+        top_k_ids = np.array(top_k_beam_search(model, query, trie_data, k=k, max_length=max_length, decode_docid_fn=dataset.decode_docid))
+        # Get the list of relevant docids
+        docids_list = np.array(queries[dataset.query_ids[query]]['docids_list'])
+        # Compute the precision at k
+        p_at_k = np.isin(top_k_ids, docids_list).mean()
+        # Update the running mean
+        running_mean_PatK = running_mean_PatK + (p_at_k - running_mean_PatK) / (i+1)
+
+        if i==k: break
+
+    return running_mean_PatK
+
+
+# Mean average precision
+def compute_MAP(model, trie_data, test_dataset, dataset, queries, k=10, max_length=10):
+    """
+    Computes the mean average precision for a given model and dataset.
+
+    Args:
+        model: PyTorch model used to compute the next token probabilities.
+        trie_data: Trie data structure.
+        dataset: Dataset object.
+        queries: Dictionary of queries.
+        k: Number of top sequences to return.
+        max_length: Maximum length of the sequences.
+    """
+    # Initialize running mean average precision
+    running_mean_AP = 0.0
+
+    # Iterate over test dataset
+    for i, (query, _) in enumerate(tqdm(test_dataset, desc="Computing Mean AP")):
+        # Compute top-k docids for the current query
+        top_k_ids = np.array(top_k_beam_search(model, query, trie_data, k=k, max_length=max_length, decode_docid_fn=dataset.decode_docid))
+        # Get the list of relevant docids
+        docids_list = np.array(queries[dataset.query_ids[query]]['docids_list'])
+        # Compute average precision for the current query
+        current_AP = compute_AP(top_k_ids, docids_list)
+        # Update the running mean
+        running_mean_AP = running_mean_AP + (current_AP - running_mean_AP) / (i+1)
+
+        if i==k: break  ########################################################## REMOVE THIS LINE
+
+    # Return the running mean average precision
+    return running_mean_AP
