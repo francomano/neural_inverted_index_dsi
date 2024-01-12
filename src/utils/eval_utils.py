@@ -238,7 +238,7 @@ def compute_AP(top_k_ids, docids_list):
 
 
 # Precision at k
-def compute_PatK(model, trie_data, test_dataset, dataset, queries, k=10, max_length=10):
+def compute_PatK(model, trie_data, test_queries, dataset, queries, k=10, max_length=10):
     """
     Computes the precision at k for a given model and dataset.
 
@@ -254,7 +254,7 @@ def compute_PatK(model, trie_data, test_dataset, dataset, queries, k=10, max_len
     running_mean_PatK = 0
 
     # Iterate over test dataset
-    for i, (query, _) in enumerate(tqdm(test_dataset, desc="Computing p@k")):
+    for i, query in enumerate(tqdm(test_queries, desc="Computing p@k")):
         # Compute top-k docids for the current query
         top_k_ids = np.array(top_k_beam_search(model, query, trie_data, k=k, max_length=max_length, decode_docid_fn=dataset.decode_docid))
         # Get the list of relevant docids
@@ -264,13 +264,11 @@ def compute_PatK(model, trie_data, test_dataset, dataset, queries, k=10, max_len
         # Update the running mean
         running_mean_PatK = running_mean_PatK + (p_at_k - running_mean_PatK) / (i+1)
 
-        if i==k: break
-
     return running_mean_PatK
 
 
 # Mean average precision
-def compute_MAP(model, trie_data, test_dataset, dataset, queries, k=10, max_length=10):
+def compute_MAP(model, trie_data, test_queries, dataset, queries, k=10, max_length=10):
     """
     Computes the mean average precision for a given model and dataset.
 
@@ -286,7 +284,7 @@ def compute_MAP(model, trie_data, test_dataset, dataset, queries, k=10, max_leng
     running_mean_AP = 0.0
 
     # Iterate over test dataset
-    for i, (query, _) in enumerate(tqdm(test_dataset, desc="Computing Mean AP")):
+    for i, query in enumerate(tqdm(test_queries, desc="Computing Mean AP")):
         # Compute top-k docids for the current query
         top_k_ids = np.array(top_k_beam_search(model, query, trie_data, k=k, max_length=max_length, decode_docid_fn=dataset.decode_docid))
         # Get the list of relevant docids
@@ -295,8 +293,6 @@ def compute_MAP(model, trie_data, test_dataset, dataset, queries, k=10, max_leng
         current_AP = compute_AP(top_k_ids, docids_list)
         # Update the running mean
         running_mean_AP = running_mean_AP + (current_AP - running_mean_AP) / (i+1)
-
-        if i==k: break  ########################################################## REMOVE THIS LINE
 
     # Return the running mean average precision
     return running_mean_AP
