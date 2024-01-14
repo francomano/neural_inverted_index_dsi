@@ -234,43 +234,37 @@ def compute_AP(top_k_ids, docids_list):
     precision_at_relevant = np.where(is_relevant, 1 / positions, 0)
     # Filter out non-zero elements and compute the mean
     non_zero_mean = precision_at_relevant[precision_at_relevant != 0].mean()
+    # Return
     return non_zero_mean
 
 
-# Precision at k
-def compute_Precision_at_K(model, trie_data, test_queries, dataset, queries, k=10, max_length=10):
+# Precision@k
+def compute_PAK(top_k_ids, docids_list):
     """
-    Computes the precision at k for a given model and dataset.
+    Computes the precision at k for a given query.
 
     Args:
-        model: PyTorch model used to compute the next token probabilities.
-        trie_data: Trie data structure.
-        dataset: Dataset object.
-        queries: Dictionary of queries.
-        k: Number of top sequences to return.
-        max_length: Maximum length of the sequences.
+        top_k_ids: List of top k retrieved document IDs.
+        docids_list: List of relevant document IDs.
     """
-    # Initialize precision at k
-    running_mean_PatK = 0
+    return np.isin(top_k_ids, docids_list).mean()
 
-    # Iterate over test dataset
-    for i, query in enumerate(tqdm(test_queries, desc="Computing Precision@K")):
-        # Compute top-k docids for the current query
-        top_k_ids = np.array(top_k_beam_search(model, query, trie_data, k=k, max_length=max_length, decode_docid_fn=dataset.decode_docid))
-        # Get the list of relevant docids
-        docids_list = np.array(queries[dataset.query_ids[query]]['docids_list'])
-        # Compute the precision at k
-        p_at_k = np.isin(top_k_ids, docids_list).mean()
-        # Update the running mean
-        running_mean_PatK = running_mean_PatK + (p_at_k - running_mean_PatK) / (i+1)
 
-    return running_mean_PatK
+def compute_RAK(top_k_ids, docids_list):
+    """
+    Computes the recall at k for a given query.
+
+    Args:
+        top_k_ids: List of top k retrieved document IDs.
+        docids_list: List of relevant document IDs.
+    """
+    return np.sum(np.isin(top_k_ids, docids_list)) / len(docids_list)
 
 
 # Mean average precision
-def compute_MAP(model, trie_data, test_queries, dataset, queries, k=10, max_length=10):
+def compute_Mean_metrics(model, trie_data, test_queries, dataset, queries, k=10, max_length=10):
     """
-    Computes the mean average precision for a given model and dataset.
+    Computes the mean
 
     Args:
         model: PyTorch model used to compute the next token probabilities.
@@ -282,50 +276,26 @@ def compute_MAP(model, trie_data, test_queries, dataset, queries, k=10, max_leng
     """
     # Initialize running mean average precision
     running_mean_AP = 0.0
+    running_mean_PatK = 0
+    running_mean_RatK = 0
 
     # Iterate over test dataset
-    for i, query in enumerate(tqdm(test_queries, desc="Computing Mean AP")):
+    for i, query in enumerate(tqdm(test_queries, desc="Computing Mean Metrics")):
         # Compute top-k docids for the current query
         top_k_ids = np.array(top_k_beam_search(model, query, trie_data, k=k, max_length=max_length, decode_docid_fn=dataset.decode_docid))
         # Get the list of relevant docids
         docids_list = np.array(queries[dataset.query_ids[query]]['docids_list'])
         # Compute average precision for the current query
         current_AP = compute_AP(top_k_ids, docids_list)
+        # Compute the precision at k
+        current_PAK = compute_PAK(top_k_ids, docids_list)
+        # Compute the recall at k
+        current_RAK = compute_RAK(top_k_ids, docids_list)
+
         # Update the running mean
         running_mean_AP = running_mean_AP + (current_AP - running_mean_AP) / (i+1)
+        running_mean_PatK = running_mean_PatK + (current_PAK - running_mean_PatK) / (i+1)
+        running_mean_RatK = running_mean_RatK + (current_RAK - running_mean_RatK) / (i+1)
 
     # Return the running mean average precision
-    return running_mean_AP
-
-
-# Recall at k
-def compute_Recall_at_K(model, trie_data, test_queries, dataset, queries, k=10, max_length=10):
-    """
-    Computes the recall at k for a given model and dataset.
-    
-    Args:
-        model: PyTorch model used to compute the next token probabilities.
-        trie_data: Trie data structure.
-        dataset: Dataset object.
-        queries: Dictionary of queries.
-        k: Number of top sequences to return.
-        max_length: Maximum length of the sequences.
-    """
-    # Initialize running mean recall at k
-    running_mean_Recall_at_K = 0.0
-
-    # Iterate over test dataset
-    for i, query in enumerate(tqdm(test_queries, desc="Computing Recall@K")):
-        # Compute top-k docids for the current query
-        top_k_ids = np.array(top_k_beam_search(model, query, trie_data, k=k, max_length=max_length, decode_docid_fn=dataset.decode_docid))
-        # Get the list of relevant docids
-        docids_list = np.array(queries[dataset.query_ids[query]]['docids_list'])
-        # Calculate the number of relevant documents in top K
-        num_relevant_in_top_k = np.sum(np.isin(top_k_ids, docids_list))
-        # Calculate Recall@K for the current query
-        recall_at_k = num_relevant_in_top_k / len(docids_list) if docids_list.size > 0 else 0
-        # Update the running mean
-        running_mean_Recall_at_K += (recall_at_k - running_mean_Recall_at_K) / (i + 1)
-
-    # Return the running mean recall at k
-    return running_mean_Recall_at_K
+    return running_mean_AP, running_mean_PatK, running_mean_RatK
