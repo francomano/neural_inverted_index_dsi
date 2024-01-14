@@ -7,7 +7,10 @@ from torch.utils.data import DataLoader, random_split
 
 
 # Train model
-def train_model(dataset, model, max_epochs, batch_size=1024, split_ratio=0.8, **dataloader_kwargs):
+def train_model(dataset, model, max_epochs, seed=42, batch_size=1024, split_ratio=0.8, **dataloader_kwargs):
+    # Set the random seed for reproducibility
+    torch.manual_seed(42)
+    
     # Calculate split sizes
     calculate_split_sizes = lambda dataset_size, split_ratio: (int(split_ratio * dataset_size), dataset_size - int(split_ratio * dataset_size))
 
@@ -22,6 +25,9 @@ def train_model(dataset, model, max_epochs, batch_size=1024, split_ratio=0.8, **
     # Training the model
     trainer = pl.Trainer(max_epochs=max_epochs)
     trainer.fit(model, train_dataloader, val_dataloader)
+
+    # Return datasets
+    return train_dataset, eval_dataset
 
 
 def learn_docids(dataset, model, max_epochs, batch_size=1024, **dataloader_kwargs):
