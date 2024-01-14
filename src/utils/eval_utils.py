@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from sklearn.metrics.pairwise import cosine_similarity
 import torch
 import numpy as np
-from tqdm import tqdm
+from tqdm.notebook import tqdm
 
 # Precision at K for TF-IDF
 def precision_at_k_tfidf(queries, doc_ids, tfidf_matrix, vectorizer, k, num_queries=5):
@@ -250,7 +250,7 @@ def compute_RAK(top_k_ids, docids_list):
 
 
 # Mean average precision
-def compute_Mean_metrics(model, test_queries, queries, trie_data=None, dataset=None, k=10, max_length=10, model_type='seq2seq'):
+def compute_Mean_metrics(model, test_queries, queries, documents, trie_data=None, dataset=None, k=10, max_length=10, model_type='seq2seq'):
     """
     Computes the mean
 
@@ -270,13 +270,15 @@ def compute_Mean_metrics(model, test_queries, queries, trie_data=None, dataset=N
     # Iterate over test dataset
     for i, query in enumerate(tqdm(test_queries, desc="Computing Mean Metrics")):
         # Get the list of relevant docids
-        docids_list = np.array(queries[dataset.query_ids[query]]['docids_list'])
+        
 
         # Compute top-k docids for the current query
         if model_type == 'seq2seq':
+            docids_list = np.array(queries[dataset.query_ids[query]]['docids_list'])
             top_k_ids = np.array(top_k_beam_search(model, query, trie_data, k=k, max_length=max_length, decode_docid_fn=dataset.decode_docid))
         elif model_type == 'siamese':
-            top_k_ids = top_k_docids_siamese(model, queries[query], dataset.documents, k=k)
+            docids_list = np.array(queries[query]['docids_list'])
+            top_k_ids = top_k_docids_siamese(model, queries[query], documents, k=k)
 
         # Compute average precision for the current query
         current_AP = compute_AP(top_k_ids, docids_list)
