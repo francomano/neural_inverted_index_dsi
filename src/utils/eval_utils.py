@@ -5,74 +5,6 @@ import torch
 import numpy as np
 from tqdm import tqdm
 
-# Precision at K
-def precision_at_k(model, queries, documents, k, max_queries=None, ret_type='emb'):
-    """
-    Computes the precision at k for a given model and data.
-
-    Args:
-        model: PyTorch model used to compute similarity scores.
-        queries: Dictionary of queries with their embeddings and correlated doc IDs.
-        documents: Dictionary of document embeddings.
-        k: Number of top documents to consider for calculating precision.
-    :return: Dictionary of precision at k for each query.
-    """
-    # Initialize the dictionary for storing the precisions
-    precisions = {}
-
-    # Randomly sample the queries if max_queries is specified
-    if max_queries is not None and max_queries < len(queries):
-        sampled_query_ids = random.sample(list(queries.keys()), max_queries)
-        queries = {qid: queries[qid] for qid in sampled_query_ids}
-    
-    # Iterate through each query
-    for query_id, query_info in tqdm(queries.items(), desc="Computing Precision at K"):
-        # Get the query embedding and relevant documents
-        query_emb = torch.tensor(query_info[ret_type], dtype=torch.float32)
-        relevant_docs = query_info['docids_list']
-        
-        # Initialize list for storing scores
-        scores = []
-
-        # Iterate through each document
-        for doc_id, doc_info in documents.items():
-            # Get the document embedding
-            doc_emb = torch.tensor(doc_info[ret_type], dtype=torch.float32)
-            
-            # If the model is a SiameseNetwork
-            if model.__class__.__name__ == 'SiameseNetwork':
-                # Compute the score
-                score = model(query_emb.unsqueeze(-1).permute(1,0).to(model.device) , doc_emb.unsqueeze(-1).permute(1,0).to(model.device)).item()
-
-            # If the model is a SiameseTransformer
-            elif model.__class__.__name__ == 'SiameseTransformer':
-                # Pad the embeddings if necessary
-                query_emb_padded = F.pad(query_emb.unsqueeze(0), (0, model.embedding_size - query_emb.size(0))).squeeze(0)
-                doc_emb_padded = F.pad(doc_emb.unsqueeze(0), (0, model.embedding_size - doc_emb.size(0))).squeeze(0)
-                # Compute the score
-                score = model(query_emb_padded.unsqueeze(-1).permute(1,0).to(model.device), doc_emb_padded.unsqueeze(-1).permute(1,0).to(model.device)).item()
-            
-            # If the model is a SiameseNetworkPL
-            elif model.__class__.__name__ == 'SiameseNetworkPL':
-                # Compute the score
-                score = F.cosine_similarity(model(query_emb).unsqueeze(0), model(doc_emb).unsqueeze(0)).item()
-
-            # Append the score to the list
-            scores.append((doc_id, score, 1 if doc_id in relevant_docs else 0))
-
-        # Rank documents based on scores comouted by the model
-        ranked_docs = sorted(scores, key=lambda x: x[1], reverse=True)
-        
-        # Calculate precision at k by counting the number of relevant documents in the top k documents
-        relevant_count = sum(score for _, _, score in ranked_docs[:k])
-
-        # Store the precision at k and the top k documents for the query
-        precisions[query_id] = {'p@k': relevant_count / k, 'top_k_docs': ranked_docs[:k]}
-    
-    # Return the precisions
-    return precisions
-
-
 # Precision at K for TF-IDF
 def precision_at_k_tfidf(queries, doc_ids, tfidf_matrix, vectorizer, k, num_queries=5):
     """
@@ -107,6 +39,62 @@ def precision_at_k_tfidf(queries, doc_ids, tfidf_matrix, vectorizer, k, num_quer
         results[query_id] = relevant_count / k
 
     return results
+
+
+# Extract top k docids for a given query
+def top_k_docids_siamese(model, query_info, documents, k):    
+    """
+    Extracts the top k docids for a given query.
+
+    Args:
+        model: The trained model.
+        query_info: Dictionary containing query information.
+        documents: Dictionary containing document information.
+        k: Number of top documents to return.
+        ret_type: Type of embedding to use for computing the similarity score.
+    """
+    # Determine the return type
+    if model.__class__.__name__ == 'SiameseNetwork': ret_type = 'emb'
+    if model.__class__.__name__ == 'SiameseTransformer': ret_type = 'first_L_emb'
+    if model.__class__.__name__ == 'SiameseNetworkPL': ret_type = 'emb'
+
+    # Get the query embedding
+    query_emb = torch.tensor(query_info[ret_type], dtype=torch.float32)
+    
+    # Initialize list for storing scores
+    scores = []
+
+    # Iterate through each document
+    for doc_id, doc_info in tqdm(documents.items(), desc="Computing Top K DocIDs"):
+        # Get the document embedding
+        doc_emb = torch.tensor(doc_info[ret_type], dtype=torch.float32)
+        
+        # If the model is a SiameseNetwork
+        if model.__class__.__name__ == 'SiameseNetwork':
+            # Compute the score
+            score = model(query_emb.unsqueeze(-1).permute(1,0).to(model.device) , doc_emb.unsqueeze(-1).permute(1,0).to(model.device)).item()
+
+        # If the model is a SiameseTransformer
+        elif model.__class__.__name__ == 'SiameseTransformer':
+            # Pad the embeddings if necessary
+            query_emb_padded = F.pad(query_emb.unsqueeze(0), (0, model.embedding_size - query_emb.size(0))).squeeze(0)
+            doc_emb_padded = F.pad(doc_emb.unsqueeze(0), (0, model.embedding_size - doc_emb.size(0))).squeeze(0)
+            # Compute the score
+            score = model(query_emb_padded.unsqueeze(-1).permute(1,0).to(model.device), doc_emb_padded.unsqueeze(-1).permute(1,0).to(model.device)).item()
+        
+        # If the model is a SiameseNetworkPL
+        elif model.__class__.__name__ == 'SiameseNetworkPL':
+            # Compute the score
+            score = F.cosine_similarity(model(query_emb).unsqueeze(0), model(doc_emb).unsqueeze(0)).item()
+
+        # Append the score to the list
+        scores.append([doc_id, score])
+
+    # Rank documents based on scores comouted by the model and extract top k docids
+    top_k_docids = np.array(sorted(scores, key=lambda x: x[1], reverse=True))[:k, 0]
+    
+    # Return top k docids
+    return top_k_docids
 
 
 # Compute top k docids greedly
@@ -262,7 +250,7 @@ def compute_RAK(top_k_ids, docids_list):
 
 
 # Mean average precision
-def compute_Mean_metrics(model, trie_data, test_queries, dataset, queries, k=10, max_length=10):
+def compute_Mean_metrics(model, test_queries, queries, trie_data=None, dataset=None, k=10, max_length=10, model_type='seq2seq'):
     """
     Computes the mean
 
@@ -281,10 +269,15 @@ def compute_Mean_metrics(model, trie_data, test_queries, dataset, queries, k=10,
 
     # Iterate over test dataset
     for i, query in enumerate(tqdm(test_queries, desc="Computing Mean Metrics")):
-        # Compute top-k docids for the current query
-        top_k_ids = np.array(top_k_beam_search(model, query, trie_data, k=k, max_length=max_length, decode_docid_fn=dataset.decode_docid))
         # Get the list of relevant docids
         docids_list = np.array(queries[dataset.query_ids[query]]['docids_list'])
+
+        # Compute top-k docids for the current query
+        if model_type == 'seq2seq':
+            top_k_ids = np.array(top_k_beam_search(model, query, trie_data, k=k, max_length=max_length, decode_docid_fn=dataset.decode_docid))
+        elif model_type == 'siamese':
+            top_k_ids = top_k_docids_siamese(model, queries[query], dataset.documents, k=k)
+
         # Compute average precision for the current query
         current_AP = compute_AP(top_k_ids, docids_list)
         # Compute the precision at k
