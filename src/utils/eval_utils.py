@@ -238,7 +238,7 @@ def compute_AP(top_k_ids, docids_list):
 
 
 # Precision at k
-def compute_PatK(model, trie_data, test_queries, dataset, queries, k=10, max_length=10):
+def compute_Precision_at_K(model, trie_data, test_queries, dataset, queries, k=10, max_length=10):
     """
     Computes the precision at k for a given model and dataset.
 
@@ -254,7 +254,7 @@ def compute_PatK(model, trie_data, test_queries, dataset, queries, k=10, max_len
     running_mean_PatK = 0
 
     # Iterate over test dataset
-    for i, query in enumerate(tqdm(test_queries, desc="Computing p@k")):
+    for i, query in enumerate(tqdm(test_queries, desc="Computing Precision@K")):
         # Compute top-k docids for the current query
         top_k_ids = np.array(top_k_beam_search(model, query, trie_data, k=k, max_length=max_length, decode_docid_fn=dataset.decode_docid))
         # Get the list of relevant docids
@@ -296,3 +296,36 @@ def compute_MAP(model, trie_data, test_queries, dataset, queries, k=10, max_leng
 
     # Return the running mean average precision
     return running_mean_AP
+
+
+# Recall at k
+def compute_Recall_at_K(model, trie_data, test_queries, dataset, queries, k=10, max_length=10):
+    """
+    Computes the recall at k for a given model and dataset.
+    
+    Args:
+        model: PyTorch model used to compute the next token probabilities.
+        trie_data: Trie data structure.
+        dataset: Dataset object.
+        queries: Dictionary of queries.
+        k: Number of top sequences to return.
+        max_length: Maximum length of the sequences.
+    """
+    # Initialize running mean recall at k
+    running_mean_Recall_at_K = 0.0
+
+    # Iterate over test dataset
+    for i, query in enumerate(tqdm(test_queries, desc="Computing Recall@K")):
+        # Compute top-k docids for the current query
+        top_k_ids = np.array(top_k_beam_search(model, query, trie_data, k=k, max_length=max_length, decode_docid_fn=dataset.decode_docid))
+        # Get the list of relevant docids
+        docids_list = np.array(queries[dataset.query_ids[query]]['docids_list'])
+        # Calculate the number of relevant documents in top K
+        num_relevant_in_top_k = np.sum(np.isin(top_k_ids, docids_list))
+        # Calculate Recall@K for the current query
+        recall_at_k = num_relevant_in_top_k / len(docids_list) if docids_list.size > 0 else 0
+        # Update the running mean
+        running_mean_Recall_at_K += (recall_at_k - running_mean_Recall_at_K) / (i + 1)
+
+    # Return the running mean recall at k
+    return running_mean_Recall_at_K
