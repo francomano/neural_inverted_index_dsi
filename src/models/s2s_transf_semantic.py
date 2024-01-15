@@ -75,7 +75,7 @@ class BaseTransformer(pl.LightningModule):
         output = self.model(src, tgt, src_mask, tgt_mask,
                             None, src_padding_mask, tgt_padding_mask, src_padding_mask)
 
-        return self.output_layer(output)
+        return self.output_layer(self.relu(output))
 
 
     def training_step(self, batch, batch_idx):
