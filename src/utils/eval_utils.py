@@ -24,7 +24,7 @@ def precision_at_k_tfidf(queries, doc_ids, tfidf_matrix, vectorizer, k, num_quer
     # Get num_queries random queries
     query_ids = random.sample(list(queries.keys()), num_queries)
 
-    for query_id in tqdm(query_ids, desc="Computing Precision at K"):
+    for query_id in tqdm(query_ids, desc=f"Computing Precision at {k}"):
         # Get the relevant documents for the query
         relevant_docs = queries[query_id]["docids_list"]
         # Compute the TF-IDF matrix
@@ -65,7 +65,7 @@ def top_k_docids_siamese(model, query_info, documents, k):
     scores = []
 
     # Iterate through each document
-    for doc_id, doc_info in tqdm(documents.items(), desc="Computing Top K DocIDs"):
+    for doc_id, doc_info in tqdm(documents.items(), desc=f"Computing Top {k} DocIDs"):
         # Get the document embedding
         doc_emb = torch.tensor(doc_info[ret_type], dtype=torch.float32)
         
@@ -278,12 +278,12 @@ def compute_Mean_metrics(model, test_queries, queries, documents, trie_data=None
             top_k_ids = np.array(top_k_beam_search(model, query, trie_data, k=k, max_length=max_length, decode_docid_fn=dataset.decode_docid))
         elif model_type == 'siamese':
             docids_list = np.array(queries[query]['docids_list'])
-            top_k_ids = top_k_docids_siamese(model, queries[query], documents, k=k)
+            top_k_ids = top_k_docids_siamese(model, queries[query], documents, k=1000)
 
         # Compute average precision for the current query
-        current_AP = compute_AP(top_k_ids, docids_list)
+        current_AP = compute_AP(top_k_ids[:k], docids_list)
         # Compute the precision at k
-        current_PAK = compute_PAK(top_k_ids, docids_list)
+        current_PAK = compute_PAK(top_k_ids[:k], docids_list)
         # Compute the recall at k
         current_RAK = compute_RAK(top_k_ids, docids_list)
 

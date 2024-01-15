@@ -1,12 +1,10 @@
 import random
-import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset
 from neural_inverted_index_dsi.src.utils import dataset_utils
 from transformers import T5Tokenizer
-# from sklearn.decomposition import IncrementalPCA
-
+from tqdm.notebook import tqdm
 
 # (query, document, relevance) dataset class
 class QueryDocumentDataset(Dataset):
@@ -35,7 +33,7 @@ class QueryDocumentDataset(Dataset):
         all_doc_ids = set(documents.keys())
         
         # For each query
-        for query_id, query_data in queries.items():
+        for query_id, query_data in tqdm(queries.items(), desc='Building QueryDocumentDataset'):
             # Get the list of correlated documents
             docid_list = set(query_data['docids_list'])
             # Add positive examples
@@ -107,7 +105,7 @@ class TripletQueryDocumentDataset(Dataset):
         all_doc_ids = set(documents.keys())
 
         # For each query
-        for query_id, query_data in queries.items():
+        for query_id, query_data in tqdm(queries.items(), desc='Building TripletQueryDocumentDataset'):
             # Get the list of correlated documents
             positive_docs = set(query_data['docids_list'])
             # Get the list of negative documents, randomly sampled from all_doc_ids excluding positive_docs
@@ -185,7 +183,7 @@ class DocumentDataset(Dataset):
         encoded_docs = []
 
         # For each document in the documents dictionary
-        for docid, content in self.documents.items():
+        for docid, content in tqdm(self.documents.items(), desc='Building DocumentDataset'):
             # Tokenizing and encoding the document text
             preprocessed_text = dataset_utils.preprocess_text(content['raw'])
             preprocessed_text = " ".join(preprocessed_text)
@@ -275,7 +273,7 @@ class RetrievalDataset(Dataset):
         encoded_queries = []
 
         # Iterate over the queries
-        for queryid, content in self.queries.items():
+        for queryid, content in tqdm(self.queries.items(), desc='Building RetrievalDataset'):
             # Tokenizing and encoding the document text
             preprocessed_text = dataset_utils.preprocess_text(content['raw'])
             preprocessed_text = " ".join(preprocessed_text)
@@ -328,88 +326,3 @@ class RetrievalDataset(Dataset):
         decoded = ''.join(map(str, encoded_docid_list))
 
         return decoded
-
-
-
-'''
-class SemanticDocIDManager:
-    def __init__(self, documents, max_docid_dim=10, batch_size=None):
-        self.documents = documents
-        self.max_docid_dim = max_docid_dim
-        self.batch_size = batch_size
-        self.semantic_docids, self.reverse_mapping = self.create_semantic_docids()
-
-    def create_semantic_docids(self):
-        embeddings = np.array([content['emb'] for content in self.documents.values()])
-
-        ipca = IncrementalPCA(n_components=self.max_docid_dim, batch_size=self.batch_size)
-        reduced_embeddings = ipca.fit_transform(embeddings)
-
-        # Normalize: absolute value and scale
-        normalized_embeddings = np.abs(reduced_embeddings) * 1000  # Scale factor
-
-        semantic_docids = {}
-        reverse_mapping = {}
-        for docid, normalized_embedding in zip(self.documents.keys(), normalized_embeddings):
-            # Convert to a flat string of integers
-            semantic_id = ''.join(map(lambda x: f"{int(x):01d}", normalized_embedding))  # Zero-padding for uniform length
-            semantic_docids[docid] = semantic_id
-            reverse_mapping[semantic_id] = docid
-        return semantic_docids, reverse_mapping
-
-    def map_semantic_to_original(self, semantic_docid):
-        return self.reverse_mapping.get(semantic_docid, None)
-
-
-class DocumentDataset(Dataset):
-    def __init__(self, documents, semantic_docids, doc_max_len=7):
-        self.tokenizer = T5Tokenizer.from_pretrained('t5-small')
-        self.documents = documents
-        self.semantic_docids = semantic_docids
-        self.doc_max_len = doc_max_len
-
-        self.encoded_docs = []
-        self.encoded_semantic_docids = []
-
-        self.docid_eos_token = 10   # End of string token for docids
-        self.docid_pad_token = 11   # Padding token for docids
-        self.docid_sos_token = 12
-
-        self.max_docid_len = 8
-
-        for docid, content in documents.items():
-            # Tokenizing and encoding the document text
-            preprocessed_text = dataset_utils.preprocess_text(content['raw'])
-            preprocessed_text = " ".join(preprocessed_text)
-            encoded_doc = self.tokenizer.encode(preprocessed_text,add_special_tokens=True,max_length=self.doc_max_len,truncation=True)
-            encoded_doc = F.pad(torch.tensor(encoded_doc), (0, self.doc_max_len - len(encoded_doc)), value=0)
-            self.encoded_docs.append(encoded_doc)
-
-            # Encoding the semantic docid
-            semantic_docid = self.semantic_docids[docid]
-            #encoded_semantic_docid = self.tokenizer.encode(semantic_docid, add_special_tokens=False)
-            # Encoding the docid (treating each character as a digit)
-            #print(semantic_docid)
-            encoded_semantic_docid = torch.tensor([self.docid_sos_token] + list(map(int, semantic_docid)) + [self.docid_eos_token] +
-                                     [self.docid_pad_token] * (self.max_docid_len - len(semantic_docid)))
-            self.encoded_semantic_docids.append(encoded_semantic_docid)
-
-    def __len__(self):
-        return len(self.encoded_docs)
-
-    def __getitem__(self, idx):
-        return self.encoded_docs[idx], self.encoded_semantic_docids[idx]
-
-    def decode_docid(self, encoded_docid):
-        # Convert to numpy array and skip the first element (start token)
-        docid_array = np.array(encoded_docid)[1:]
-
-        # Convert array elements to string and concatenate them
-        decoded = ''.join(map(str, docid_array))
-
-        # Remove end-of-string and padding tokens from the end of the string
-        decoded = decoded.rstrip(str(self.docid_eos_token))
-        decoded = decoded.rstrip(str(self.docid_pad_token))
-
-        return decoded
-'''
