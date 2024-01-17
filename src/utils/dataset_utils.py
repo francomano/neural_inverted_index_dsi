@@ -5,6 +5,9 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from pyserini.search import get_topics, SimpleSearcher
 from tqdm.notebook import tqdm
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.preprocessing import LabelEncoder
+import hashlib
 
 
 # Define the function to preprocess the text
@@ -85,3 +88,32 @@ def build_dicts(max_topics=2, max_docs=3):
 
     # Return the three dictionaries
     return queries, documents, corpus
+
+
+# Define the function that generates the docids
+def generate_semantic_docid(document, max_length=7):
+    # Extract key features (e.g., top keywords)
+    vectorizer = TfidfVectorizer(max_features=5)  # Adjust as needed
+    tfidf_matrix = vectorizer.fit_transform([document])
+    feature_names = vectorizer.get_feature_names_out()
+    sorted_features = np.argsort(tfidf_matrix.toarray()).flatten()[::-1]
+    key_features = [feature_names[index] for index in sorted_features[:3]]  # Top 3 features
+
+    # Encode features as numbers
+    encoder = LabelEncoder()
+    encoded_features = encoder.fit_transform(key_features)
+
+    # Combine encoded features into a single number
+    combined_features_number = int(''.join(map(str, encoded_features)))
+
+    # Create a unique part based on the document's content
+    # For example, using a hash and taking a part of it
+    unique_part = int(hashlib.md5(document.encode()).hexdigest()[:4], 16)
+
+    # Combine the feature number with the unique part
+    combined_number = int(str(combined_features_number) + str(unique_part))
+
+    # Truncate or pad the number to fit the max_length requirement
+    docid = str(combined_number)[:max_length].zfill(max_length)
+
+    return docid
