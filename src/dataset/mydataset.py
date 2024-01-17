@@ -363,7 +363,7 @@ class RetrievalDataset(Dataset):
         if self.docid_eos_token in encoded_docid_list:
             encoded_docid_list = encoded_docid_list[:encoded_docid_list.index(self.docid_eos_token)]
         else:
-            # If EOS token is not found, handle accordingly (e.g., use the entire list or throw an error)
+            # If EOS token is not found, error in generating the docid, so we return the EOS token
             encoded_docid_list = [self.docid_eos_token]
 
         # Convert the remaining tokens to string and join them
