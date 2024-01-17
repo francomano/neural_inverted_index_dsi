@@ -4,6 +4,7 @@ import numpy as np
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from pyserini.search import get_topics, SimpleSearcher
+from tqdm.notebook import tqdm
 
 
 # Define the function to preprocess the text
@@ -59,7 +60,7 @@ def build_dicts(max_topics=2, max_docs=3):
     topics_items = list(topics.items())[:max_topics] if max_topics else topics.items()
 
     # For each topic
-    for query_id, topic_info in topics_items:
+    for query_id, topic_info in tqdm(topics_items, "Building dictionaries"):
         # Get the query embedding and update the queries dictionary
         queries[query_id] = {
             'raw': topic_info['title'],     # Raw query
