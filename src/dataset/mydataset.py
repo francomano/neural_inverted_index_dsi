@@ -177,7 +177,7 @@ class DocumentDataset(Dataset):
 
         # Compute the maximum docid length
         self.docid_max_len = max(len(str(docid)) for docid in documents.keys()) + 2  # for EOS token and start token
-        self.semantic_docid_max_len = 12 + 2 # for EOS token and start token
+        self.semantic_docid_max_len = None # To be set later
 
         # Initialize the encoded documents and docids lists
         self.encoded_docs, self.docids = self.build_dataset()
@@ -215,9 +215,11 @@ class DocumentDataset(Dataset):
     def set_semantic(self, semantic):
         self.semantic = semantic
 
-    def add_semantic_docids_mapping(self, semantic_docids_mapping):
+    def add_semantic_docids_mapping(self, semantic_docids_mapping, semantic_docid_max_len):
         # Add the semantic docids mapping
         self.semantic_to_docid = semantic_docids_mapping
+        # Set the semantic docid max length
+        self.semantic_docid_max_len = semantic_docid_max_len
         # Iterate over the semantic docids
         for docid in self.semantic_to_docid:
             semantic_docid = torch.tensor([self.docid_sos_token] + list(map(int, docid)) + [self.docid_eos_token] +
@@ -249,7 +251,7 @@ class DocumentDataset(Dataset):
         # Convert the remaining tokens to string and join them
         decoded = ''.join(map(str, encoded_docid_list))
 
-        return decoded if not self.semantic else self.semantic_to_docid[decoded]
+        return decoded if not self.semantic else self.semantic_to_docid.get(decoded, '10')
     
 
 # (encoded_query, encoded_docid) dataset class
@@ -287,7 +289,7 @@ class RetrievalDataset(Dataset):
 
         # Compute the maximum docid length
         self.docid_max_len = max(len(str(docid)) for docid in documents.keys()) + 2  # for EOS token and start token
-        self.semantic_docid_max_len = 12 + 2 # for EOS token and start token
+        self.semantic_docid_max_len = None # To be set later
 
         # Initialize the encoded documents and docids lists
         self.encoded_queries, self.docids =  self.build_dataset()
@@ -331,9 +333,11 @@ class RetrievalDataset(Dataset):
     def set_semantic(self, semantic):
         self.semantic = semantic
 
-    def add_semantic_docids_mapping(self, semantic_docids_mapping):
+    def add_semantic_docids_mapping(self, semantic_docids_mapping, semantic_docid_max_len):
         # Add the semantic docids mapping
         self.semantic_to_docid = semantic_docids_mapping
+        # Set the semantic docid max length
+        self.semantic_docid_max_len = semantic_docid_max_len
         # Iterate over the semantic docids
         for docid in self.semantic_to_docid:
             semantic_docid = torch.tensor([self.docid_sos_token] + list(map(int, docid)) + [self.docid_eos_token] +
@@ -365,4 +369,4 @@ class RetrievalDataset(Dataset):
         # Convert the remaining tokens to string and join them
         decoded = ''.join(map(str, encoded_docid_list))
 
-        return decoded if not self.semantic else self.semantic_to_docid[decoded]
+        return decoded if not self.semantic else self.semantic_to_docid.get(decoded, '10')
