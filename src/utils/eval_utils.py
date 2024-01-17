@@ -166,8 +166,8 @@ def top_k_beam_search(model, query, trie_data, k, max_length, decode_docid_fn, d
     # Permute batch dimension
     query = query.permute(1, 0)
 
-    # Initialize the hypotheses
-    hypotheses = [{'tokens': [docid_sos_token], 'prob': 1.0}]
+    # Initialize the hypotheses with log prob = 0 (since log(1) = 0)
+    hypotheses = [{'tokens': [docid_sos_token], 'log_prob': 0}]
 
     for _ in range(max_length):
         # Initialize list for storing all possible candidates
@@ -187,15 +187,15 @@ def top_k_beam_search(model, query, trie_data, k, max_length, decode_docid_fn, d
             # Get possible next tokens
             next_tokens = trie_data.get_next_tokens(h['tokens'])
             # Get probabilities for the next tokens
-            probs = torch.softmax(output[-1, 0, next_tokens], dim=0).tolist()
+            log_probs = torch.log_softmax(output[-1, 0, next_tokens], dim=0)
 
             # Create new hypotheses and add them to the list
             for idx, token in enumerate(next_tokens):
-                new_hyp = {'tokens': h['tokens'] + [token], 'prob': h['prob'] * probs[idx]}
+                new_hyp = {'tokens': h['tokens'] + [token], 'log_prob': h['log_prob'] + log_probs[idx].item()}
                 all_candidates.append(new_hyp)
 
         # Keep top k hypotheses
-        hypotheses = sorted(all_candidates, key=lambda x: x['prob'], reverse=True)[:k]
+        hypotheses = sorted(all_candidates, key=lambda x: x['log_prob'], reverse=True)[:k]
 
     # Extract token sequences
     top_k_sequences = np.array([''.join(map(str, decode_docid_fn(h['tokens']))) for h in hypotheses])
