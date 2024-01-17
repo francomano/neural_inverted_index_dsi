@@ -91,7 +91,7 @@ def build_dicts(max_topics=2, max_docs=3):
 
 
 # Define the function that generates the docids
-def generate_semantic_docid(document, max_length=7):
+def generate_semantic_docid(document, max_length=12):
     # Extract key features (e.g., top keywords)
     vectorizer = TfidfVectorizer(max_features=5)  # Adjust as needed
     tfidf_matrix = vectorizer.fit_transform([document])
@@ -107,13 +107,29 @@ def generate_semantic_docid(document, max_length=7):
     combined_features_number = int(''.join(map(str, encoded_features)))
 
     # Create a unique part based on the document's content
-    # For example, using a hash and taking a part of it
-    unique_part = int(hashlib.md5(document.encode()).hexdigest()[:4], 16)
+    # Use SHA-256 instead of MD5 and take a longer part of the hash
+    unique_part = int(hashlib.sha256(document.encode()).hexdigest()[:max_length], 16)  
 
-    # Combine the feature number with the unique part
     combined_number = int(str(combined_features_number) + str(unique_part))
-
-    # Truncate or pad the number to fit the max_length requirement
     docid = str(combined_number)[:max_length].zfill(max_length)
 
     return docid
+
+
+# Define the function that generates the semantic docids
+def generate_semantic_docids(documents, max_length=12):
+    # Initialize mapping
+    semantic_to_original = dict()
+
+    # Iterate over documents
+    for docid, content in tqdm(documents.items(), desc='Creating semantic docids'):
+        # Tokenizing and encoding the document text (we add the docid to enforce uniqueness)
+        preprocessed_text = " ".join(preprocess_text(content['raw'] + ' ' + docid))
+        # Generate semantic docid
+        semantic_docid = generate_semantic_docid(preprocessed_text, max_length)
+        # Make sure the semantic docid is unique
+        assert semantic_docid not in semantic_to_original
+        # Store mapping
+        semantic_to_original[semantic_docid] = docid
+
+    return semantic_to_original
