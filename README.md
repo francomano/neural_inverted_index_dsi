@@ -14,13 +14,6 @@ To set up your environment to use the DSI model, follow these steps:
 ```bash
 git clone https://github.com/yourusername/neural-inverted-index.git
 cd neural-inverted-index
-pip install -r requirements.txt
-```
-
-## Usage
-After installing, you can run the model with the following command:
-```bash
-python command...
 ```
 
 ## Metrics
@@ -44,4 +37,5 @@ This project is licensed under the MIT License - see the LICENSE.md file for det
 * **Marco Francomano** - [francomano](https://github.com/francomano)
 * **Luigi Gallo** - [luigi-ga](https://github.com/luigi-ga)
 
-See also the list of [contributors](https://github.com/yourusername/neural-inverted-index/contributors) who participated in this project.
+See also the list of [contributors](https://github.com/luigi-ga/neural_inverted_index_dsi/graphs/contributors) who participated in this project.
+
