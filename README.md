@@ -38,4 +38,5 @@ This project is licensed under the MIT License - see the LICENSE.md file for det
 * **Marco Francomano** - [francomano](https://github.com/francomano)
 * **Luigi Gallo** - [luigi-ga](https://github.com/luigi-ga)
 
-See also the list of [contributors](https://github.com/luigi-ga/neural-inverted-index/contributors) who participated in this project.
+See also the list of [contributors](https://github.com/luigi-ga/neural_inverted_index_dsi/graphs/contributors) who participated in this project.
+
