@@ -14,7 +14,6 @@ To set up your environment to use the DSI model, follow these steps:
 ```bash
 git clone https://github.com/yourusername/neural-inverted-index.git
 cd neural-inverted-index
-pip install -r requirements.txt
 ```
 
 ## Metrics
