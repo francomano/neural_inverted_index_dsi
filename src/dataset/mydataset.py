@@ -162,6 +162,10 @@ class DocumentDataset(Dataset):
         """
         self.documents = documents
         self.doc_max_len = doc_max_len
+
+        # Semantic docid initialization
+        self.semantic_to_docid = None
+        self.semantic = False
         
         # We use the T5 tokenizer to encode the documents
         self.tokenizer = T5Tokenizer.from_pretrained('t5-small')
@@ -172,10 +176,13 @@ class DocumentDataset(Dataset):
         self.docid_sos_token = 12     # Start of string token for docids
 
         # Compute the maximum docid length
-        self.max_docid_len = max(len(str(docid)) for docid in documents.keys()) + 2  # for EOS token and start token
+        self.docid_max_len = max(len(str(docid)) for docid in documents.keys()) + 2  # for EOS token and start token
+        self.semantic_docid_max_len = None # To be set later
 
         # Initialize the encoded documents and docids lists
         self.encoded_docs, self.docids = self.build_dataset()
+        # Initialize the semantic docids list
+        self.semantic_docids = []
     
     def build_dataset(self):
         # Initialize the encoded documents and docids lists
@@ -197,19 +204,34 @@ class DocumentDataset(Dataset):
 
             # Encoding the docid (treating each character as a digit)
             encoded_docid = torch.tensor([self.docid_sos_token] + list(map(int, docid)) + [self.docid_eos_token] +
-                                    [self.docid_pad_token] * (self.max_docid_len - len(docid)))
+                                    [self.docid_pad_token] * (self.docid_max_len - len(docid)))
 
             # Appending the encoded document and docid to the lists
             docids.append(encoded_docid)
             encoded_docs.append(encoded_doc)
 
         return encoded_docs, docids
+    
+    def set_semantic(self, semantic):
+        self.semantic = semantic
+
+    def add_semantic_docids_mapping(self, semantic_docids_mapping, semantic_docid_max_len):
+        # Add the semantic docids mapping
+        self.semantic_to_docid = semantic_docids_mapping
+        # Set the semantic docid max length
+        self.semantic_docid_max_len = semantic_docid_max_len
+        # Iterate over the semantic docids
+        for docid in self.semantic_to_docid:
+            semantic_docid = torch.tensor([self.docid_sos_token] + list(map(int, docid)) + [self.docid_eos_token] +
+                                            [self.docid_pad_token] * (self.semantic_docid_max_len - len(docid)))
+            # Add the semantic docid to the list
+            self.semantic_docids.append(semantic_docid)
 
     def __len__(self):
         return len(self.encoded_docs)
 
     def __getitem__(self, idx):
-        return self.encoded_docs[idx], self.docids[idx]
+        return self.encoded_docs[idx], self.docids[idx] if not self.semantic else self.semantic_docids[idx]
 
     def decode_docid(self, encoded_docid):
         # Convert to list (if it's not already)
@@ -229,7 +251,7 @@ class DocumentDataset(Dataset):
         # Convert the remaining tokens to string and join them
         decoded = ''.join(map(str, encoded_docid_list))
 
-        return decoded
+        return decoded if not self.semantic else self.semantic_to_docid.get(decoded, '10')
     
 
 # (encoded_query, encoded_docid) dataset class
@@ -250,6 +272,10 @@ class RetrievalDataset(Dataset):
         self.queries = queries
         self.query_max_len = query_max_len
 
+        # Semantic docid initialization
+        self.semantic_to_docid = None
+        self.semantic = False
+
         # Initialize tokenized query to query dictionary
         self.query_ids = dict()
         
@@ -262,10 +288,13 @@ class RetrievalDataset(Dataset):
         self.docid_sos_token = 12   # Start of string token for docids
 
         # Compute the maximum docid length
-        self.max_docid_len = max(len(str(docid)) for docid in documents.keys()) + 2  # for EOS token and start token
+        self.docid_max_len = max(len(str(docid)) for docid in documents.keys()) + 2  # for EOS token and start token
+        self.semantic_docid_max_len = None # To be set later
 
         # Initialize the encoded documents and docids lists
         self.encoded_queries, self.docids =  self.build_dataset()
+        # Initialize the semantic docids list
+        self.semantic_docids = []
 
     def build_dataset(self):
         # Initialize the encoded documents and docids lists
@@ -292,7 +321,7 @@ class RetrievalDataset(Dataset):
             for docid in content['docids_list']:
                 # Encoding the docid (treating each character as a digit)
                 encoded_docid = torch.tensor([self.docid_sos_token] + list(map(int, docid)) + [self.docid_eos_token] +
-                                        [self.docid_pad_token] * (self.max_docid_len - len(docid)))
+                                        [self.docid_pad_token] * (self.docid_max_len - len(docid)))
 
 
                 #self.docids.append(encoded_docid)
@@ -300,12 +329,27 @@ class RetrievalDataset(Dataset):
                 docids.append(encoded_docid)
 
         return encoded_queries, docids
+    
+    def set_semantic(self, semantic):
+        self.semantic = semantic
+
+    def add_semantic_docids_mapping(self, semantic_docids_mapping, semantic_docid_max_len):
+        # Add the semantic docids mapping
+        self.semantic_to_docid = semantic_docids_mapping
+        # Set the semantic docid max length
+        self.semantic_docid_max_len = semantic_docid_max_len
+        # Iterate over the semantic docids
+        for docid in self.semantic_to_docid:
+            semantic_docid = torch.tensor([self.docid_sos_token] + list(map(int, docid)) + [self.docid_eos_token] +
+                                            [self.docid_pad_token] * (self.semantic_docid_max_len - len(docid)))
+            # Add the semantic docid to the list
+            self.semantic_docids.append(semantic_docid)
 
     def __len__(self):
         return len(self.encoded_queries)
 
     def __getitem__(self, idx):
-        return self.encoded_queries[idx], self.docids[idx]
+        return self.encoded_queries[idx], self.docids[idx] if not self.semantic else self.semantic_docids[idx]
 
     def decode_docid(self, encoded_docid):
         # Convert to list (if it's not already)
@@ -319,10 +363,10 @@ class RetrievalDataset(Dataset):
         if self.docid_eos_token in encoded_docid_list:
             encoded_docid_list = encoded_docid_list[:encoded_docid_list.index(self.docid_eos_token)]
         else:
-            # If EOS token is not found, handle accordingly (e.g., use the entire list or throw an error)
+            # If EOS token is not found, error in generating the docid, so we return the EOS token
             encoded_docid_list = [self.docid_eos_token]
 
         # Convert the remaining tokens to string and join them
         decoded = ''.join(map(str, encoded_docid_list))
 
-        return decoded
+        return decoded if not self.semantic else self.semantic_to_docid.get(decoded, '10')

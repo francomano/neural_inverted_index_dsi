@@ -24,7 +24,7 @@ class PositionalEncoding(nn.Module):
 
 
 class BaseTransformer(pl.LightningModule):
-    def __init__(self, ntoken=None, d_model=256, nhead=4, nhid=256, nlayers=4, dropout=0.2, teacher_forcing_prob=1):
+    def __init__(self, ntoken=None, d_model=120, nhead=4, nhid=120, nlayers=4, dropout=0.2, teacher_forcing_prob=1):
         super(BaseTransformer, self).__init__()
 
         self.validation_step_outputs = []

@@ -4,6 +4,10 @@ import numpy as np
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from pyserini.search import get_topics, SimpleSearcher
+from tqdm.notebook import tqdm
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.preprocessing import LabelEncoder
+import hashlib
 
 
 # Define the function to preprocess the text
@@ -59,7 +63,7 @@ def build_dicts(max_topics=2, max_docs=3):
     topics_items = list(topics.items())[:max_topics] if max_topics else topics.items()
 
     # For each topic
-    for query_id, topic_info in topics_items:
+    for query_id, topic_info in tqdm(topics_items, "Building dictionaries"):
         # Get the query embedding and update the queries dictionary
         queries[query_id] = {
             'raw': topic_info['title'],     # Raw query
@@ -84,3 +88,48 @@ def build_dicts(max_topics=2, max_docs=3):
 
     # Return the three dictionaries
     return queries, documents, corpus
+
+
+# Define the function that generates the docids
+def generate_semantic_docid(document, max_length=12):
+    # Extract key features (e.g., top keywords)
+    vectorizer = TfidfVectorizer(max_features=5)  # Adjust as needed
+    tfidf_matrix = vectorizer.fit_transform([document])
+    feature_names = vectorizer.get_feature_names_out()
+    sorted_features = np.argsort(tfidf_matrix.toarray()).flatten()[::-1]
+    key_features = [feature_names[index] for index in sorted_features[:3]]  # Top 3 features
+
+    # Encode features as numbers
+    encoder = LabelEncoder()
+    encoded_features = encoder.fit_transform(key_features)
+
+    # Combine encoded features into a single number
+    combined_features_number = int(''.join(map(str, encoded_features)))
+
+    # Create a unique part based on the document's content
+    # Use SHA-256 instead of MD5 and take a longer part of the hash
+    unique_part = int(hashlib.sha256(document.encode()).hexdigest()[:max_length], 16)  
+
+    combined_number = int(str(combined_features_number) + str(unique_part))
+    docid = str(combined_number)[:max_length].zfill(max_length)
+
+    return docid
+
+
+# Define the function that generates the semantic docids
+def generate_semantic_docids(documents, max_length=12):
+    # Initialize mapping
+    semantic_to_original = dict()
+
+    # Iterate over documents
+    for docid, content in tqdm(documents.items(), desc='Creating semantic docids'):
+        # Tokenizing and encoding the document text (we add the docid to enforce uniqueness)
+        preprocessed_text = " ".join(preprocess_text(content['raw'] + ' ' + docid))
+        # Generate semantic docid
+        semantic_docid = generate_semantic_docid(preprocessed_text, max_length)
+        # Make sure the semantic docid is unique
+        assert semantic_docid not in semantic_to_original
+        # Store mapping
+        semantic_to_original[semantic_docid] = docid
+
+    return semantic_to_original
