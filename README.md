@@ -17,12 +17,6 @@ cd neural-inverted-index
 pip install -r requirements.txt
 ```
 
-## Usage
-After installing, you can run the model with the following command:
-```bash
-python command...
-```
-
 ## Metrics
 The performance of the search index is evaluated using the following metrics:
 
